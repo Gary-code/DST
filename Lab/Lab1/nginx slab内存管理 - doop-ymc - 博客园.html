@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<!-- saved from url=(0047)https://www.cnblogs.com/doop-ymc/p/3412572.html -->
+<html lang="zh-cn"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="origin">
+    <meta name="description" content="本来这一篇作为nginx系列的开头是不合适的，不过由于nginx进程框架自己的梳理还没完成，这部分又刚好整理完了，就从这开始吧。这儿谈的是nginx的slab的内存管理方式，这种方式的内存管理在ngi">
+    <meta property="og:description" content="本来这一篇作为nginx系列的开头是不合适的，不过由于nginx进程框架自己的梳理还没完成，这部分又刚好整理完了，就从这开始吧。这儿谈的是nginx的slab的内存管理方式，这种方式的内存管理在ngi">
+    <meta http-equiv="Cache-Control" content="no-transform">
+    <meta http-equiv="Cache-Control" content="no-siteapp">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>nginx slab内存管理 - doop-ymc - 博客园</title>
+    <link id="favicon" rel="shortcut icon" href="https://common.cnblogs.com/favicon.svg" type="image/svg+xml">
+    
+    <link rel="stylesheet" href="./nginx slab内存管理 - doop-ymc - 博客园_files/blog-common.min.css">
+    <link id="MainCss" rel="stylesheet" href="./nginx slab内存管理 - doop-ymc - 博客园_files/bundle-clover.min.css">
+    <link type="text/css" rel="stylesheet" href="./nginx slab内存管理 - doop-ymc - 博客园_files/custom.css">
+    <link id="mobile-style" media="only screen and (max-width: 767px)" type="text/css" rel="stylesheet" href="./nginx slab内存管理 - doop-ymc - 博客园_files/bundle-clover-mobile.min.css">
+    
+    <link type="application/rss+xml" rel="alternate" href="https://www.cnblogs.com/doop-ymc/rss">
+    <link type="application/rsd+xml" rel="EditURI" href="https://www.cnblogs.com/doop-ymc/rsd.xml">
+    <link type="application/wlwmanifest+xml" rel="wlwmanifest" href="https://www.cnblogs.com/doop-ymc/wlwmanifest.xml">
+    <script async="" src="./nginx slab内存管理 - doop-ymc - 博客园_files/analytics.js.下载"></script><script type="text/javascript" src="./nginx slab内存管理 - doop-ymc - 博客园_files/encoder.js.下载"></script><script>
+        var currentBlogId = 165544;
+        var currentBlogApp = 'doop-ymc';
+        var cb_enable_mathjax = false;
+        var isLogined = false;
+        var isBlogOwner = false;
+        var skinName = 'clover';
+        var visitorUserId = '';
+    </script>
+        <script>
+            var currentPostDateAdded = '2013-11-07 03:29';
+        </script>
+    <script src="./nginx slab内存管理 - doop-ymc - 博客园_files/jquery-2.2.0.min.js.下载"></script>
+    <script src="./nginx slab内存管理 - doop-ymc - 博客园_files/blog-common.min.js.下载"></script>
+    
+    
+    
+</head>
+<body class="has-navbar">
+    <a name="top"></a>
+    <div id="bannerbar" class="formobile">
+        <a href="https://brands.cnblogs.com/aws/free" target="_blank" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;aws-mobile-bannerbar&#39;)"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/35695-20201104135303888-13496776.png" alt=""></a>
+    </div>
+    <div id="top_nav" class="navbar">
+        <nav id="nav_main" class="navbar-main">
+            <ul id="nav_left" class="navbar-list navbar-left">
+                <li class="navbar-branding"><a href="https://www.cnblogs.com/" title="开发者的网上家园"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/logo.svg" alt="博客园Logo"></a></li>
+                <li><a href="https://www.cnblogs.com/" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-sitehome&#39;)">首页</a></li>
+                <li><a href="https://news.cnblogs.com/" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-news&#39;)">新闻</a></li>
+                <li><a href="https://q.cnblogs.com/" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-q&#39;)">博问</a></li>
+                <li><a id="nav_brandzone" href="https://brands.cnblogs.com/" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-brands&#39;)">专区</a></li>
+                <li><a href="https://ing.cnblogs.com/" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-ing&#39;)">闪存</a></li>
+                <li><a href="https://brands.cnblogs.com/aws/free" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;skin-navbar-aws&#39;)">云上钜惠</a></li>
+            </ul>
+            <ul id="nav_right" class="navbar-list navbar-right">
+                <li>
+                    <form id="zzk_search" class="navbar-search" action="https://zzk.cnblogs.com/s" method="get">
+                        <input name="w" id="zzk_search_input" placeholder="代码改变世界" type="text" tabindex="3">
+                        <button type="submit" id="zzk_search_button">
+                            <img src="./nginx slab内存管理 - doop-ymc - 博客园_files/search.svg" alt="搜索">
+                        </button>
+                    </form>
+                </li>
+                <li id="navbar_login_status" class="navbar-list">
+                    <a id="navblog-myblog-icon" class="navbar-user-info navbar-blog" href="https://passport.cnblogs.com/GetBlogApplyStatus.aspx" alt="我的博客" title="我的博客" style="display: none;">
+                        <img id="myblog_icon" class="navbar-icon" src="./nginx slab内存管理 - doop-ymc - 博客园_files/myblog.svg" alt="我的博客">
+                    </a>
+                    <a class="navbar-user-info navbar-message navbar-icon-wrapper" href="https://msg.cnblogs.com/" alt="短消息" title="短消息" style="display: none;">
+                        <img id="msg_icon" class="navbar-icon" src="./nginx slab内存管理 - doop-ymc - 博客园_files/message.svg" alt="短消息">
+                        <span id="msg_count" style="display: none"></span>
+                    </a>
+                    <div id="user_info" class="navbar-user-info dropdown" style="display: none;">
+                        <a class="dropdown-button" href="https://home.cnblogs.com/">
+                            <img id="user_icon" class="navbar-avatar" src="./nginx slab内存管理 - doop-ymc - 博客园_files/avatar-default.svg" alt="用户头像">
+                        </a>
+                        <div class="dropdown-menu">
+                            <a id="navblog-myblog-text" href="https://passport.cnblogs.com/GetBlogApplyStatus.aspx">我的博客</a>
+                            <a href="https://home.cnblogs.com/">我的园子</a>
+                            <a href="https://account.cnblogs.com/settings/account">账号设置</a>
+                            <a href="javascript:void(0)" onclick="logout();">退出登录</a>
+                        </div>
+                    </div>
+                    <a class="navbar-anonymous" href="https://account.cnblogs.com/signup/" style="display: inline;">注册</a>
+                    <a class="navbar-anonymous" href="javascript:void(0);" onclick="login()" style="display: inline;">登录</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    
+    <ttdd width="296" background="/skins/clover/images/banner2.jpg"></ttdd><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">
+    <tbody><tr>
+        <td width="299" background="./nginx slab内存管理 - doop-ymc - 博客园_files/banner1.jpg"></td>
+        <td background="./nginx slab内存管理 - doop-ymc - 博客园_files/banner.jpg">
+<!--done-->
+<div class="header">
+	<div class="headerText">
+		<a id="Header1_HeaderTitle" class="headermaintitle HeaderMainTitle" href="https://www.cnblogs.com/doop-ymc/">doop-ymc</a>
+<br>
+		
+
+
+	</div>
+</div>
+
+</td>
+        
+    </tr>
+</tbody></table>
+<div id="mylinks"><a id="blog_nav_sitehome" class="menu" href="https://www.cnblogs.com/">
+博客园</a>
+&nbsp; &nbsp;
+
+<a id="blog_nav_myhome" class="menu" href="https://www.cnblogs.com/doop-ymc/">
+首页</a>
+&nbsp; &nbsp;
+<a href="http://q.cnblogs.com/" class="menu" target="_blank">博问</a>&nbsp; &nbsp;
+<a href="http://home.cnblogs.com/ing/" class="menu" target="_blank">闪存</a>&nbsp; &nbsp;
+
+
+<a id="blog_nav_newpost" class="menu" href="https://i.cnblogs.com/EditPosts.aspx?opt=1">
+新随笔</a>
+&nbsp; &nbsp;
+
+<a id="blog_nav_rss" class="menu" href="javascript:void(0)" data-rss="https://www.cnblogs.com/doop-ymc/rss/">
+订阅</a>
+
+<a id="blog_nav_rss_image" href="https://www.cnblogs.com/doop-ymc/rss/">
+    <img src="./nginx slab内存管理 - doop-ymc - 博客园_files/xml.gif" alt="订阅">
+</a>&nbsp; &nbsp;
+
+<a id="blog_nav_admin" class="menu" href="https://i.cnblogs.com/">
+管理</a>
+
+
+
+</div>
+<div id="mytopmenu">
+    <div id="mystats">
+        <div class="blogStats">
+    随笔 - 
+14,&nbsp;
+    文章 - 
+0,&nbsp;
+    评论 - 
+0
+</div>
+
+
+    </div>
+</div>
+<div id="centercontent">
+    <div id="post_detail">
+    <div class="post">
+        <div class="postTitle">
+            
+<a id="cb_post_title_url" class="postTitle2 vertical-middle" href="https://www.cnblogs.com/doop-ymc/p/3412572.html">
+    <span>nginx slab内存管理</span>
+    
+
+
+</a>
+
+        </div>
+        
+<div id="cnblogs_post_body" class="blogpost-body">
+    <p>本来这一篇作为nginx系列的开头是不合适的，不过由于nginx进程框架自己的梳理还没<br>完成，这部分又刚好整理完了，就从这开始吧。<br>这儿谈的是nginx的slab的内存管理方式，这种方式的内存管理在nginx中，主要是与nginx<br>的共享内存协同使用的。nginx的slab管理与linux的slab管理相同的地方在于均是利用了内存<br>的缓存与对齐机制，slab内存管理中一些设计相当巧妙的地方，也有一些地方个人感觉设计<br>不是很完美，或许是作为nginx设计综合考虑的结果。<br>nginx slab实现中的一大特色就是大量的位操作，这部分操作很多是与slot分级数组相关的。</p>
+<p>为方便描述下面做一些说明：<br>1.将整个slab的管理结构称slab pool.<br>2.将slab pool前部的ngx_slab_pool_t结构称slab header.<br>3.将管理内存分级的ngx_slab_page_t结构称slot分级数组.<br>4.将管理page页使用的ngx_slab_page_t结构称slab page管理结构.<br>5.将具体page页的存放位置称pages数组.<br>6.将把page分成的各个小块称为chunk.<br>7.将标记chunk使用的位图结构称为bitmap.</p>
+<p>整个slab pool中有两个非常重要的结构，一是ngx_slab_pool_t，即slab header,如下示：</p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/copycode.gif" alt="复制代码"></a></span></div>
+<pre>typedef <span style="color: rgba(0, 0, 255, 1)">struct</span><span style="color: rgba(0, 0, 0, 1)"> {
+    ngx_atomic_t      </span><span style="color: rgba(0, 0, 255, 1)">lock</span><span style="color: rgba(0, 0, 0, 1)">;
+
+    size_t            min_size;
+    size_t            min_shift;
+
+    ngx_slab_page_t  </span>*<span style="color: rgba(0, 0, 0, 1)">pages;
+    ngx_slab_page_t   free;
+
+    u_char           </span>*<span style="color: rgba(0, 0, 0, 1)">start;
+    u_char           </span>*<span style="color: rgba(0, 0, 0, 1)">end;
+
+    ngx_shmtx_t       mutex;
+
+    u_char           </span>*<span style="color: rgba(0, 0, 0, 1)">log_ctx;
+    u_char            zero;
+
+    </span><span style="color: rgba(0, 0, 255, 1)">void</span>             *<span style="color: rgba(0, 0, 0, 1)">data;
+    </span><span style="color: rgba(0, 0, 255, 1)">void</span>             *<span style="color: rgba(0, 0, 0, 1)">addr;
+} ngx_slab_pool_t;</span></pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/copycode.gif" alt="复制代码"></a></span></div></div>
+<p>其中最为重要的几个成员为：<br>min_size:指最小分割成的chunk的大小。<br>min_shift:指min_size对应的移位数。<br>*pages:指向slab page管理结构的开始位置。<br>free:空闲的slab page管理结构链表。<br>*start:pages数组的的起始位置。<br>*end:整个slab pool 的结束位置。<br>*addr:整个slab pool的开始位置。</p>
+<p>另一个重要的结构是ngx_slab_page_t,slot分级数组与slab page管理结构都使用了这个结构，<br>如下示：</p>
+<div class="cnblogs_code">
+<pre><span style="color: rgba(0, 0, 255, 1)">struct</span><span style="color: rgba(0, 0, 0, 1)"> ngx_slab_page_s {
+    uintptr_t         slab;
+    ngx_slab_page_t  </span>*<span style="color: rgba(0, 0, 0, 1)">next;
+    uintptr_t         prev;
+};</span></pre>
+</div>
+<p>其中的成员说明如下示：<br>slab:slab为使用较为复杂的一个字段，有以下四种使用情况<br>    　　a.存储为些结构相连的pages的数目(slab page管理结构)<br>    　　b.存储标记chunk使用情况的bitmap(size = exact_size)<br>    　　c.存储chunk的大小(size &lt; exact_size)<br>    　　d.存储标记chunk的使用情况及chunk大小(size &gt; exact_size)<br>next:使用情况也会分情况处理，后面看。<br>prev:通常是组合使用在存储前一个位置及标记page的类型。</p>
+<p>先来看下整个slab pool的结构，如下图示：<br><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/07152129-8c007d2689ab4f50aa35486df7993c11.jpg" alt=""><br>上面需要注意的几个地方：<br>1.由于内存对齐可能会导致slab pool中有部分未使用的内存区域。<br>2.由于内存对齐可能会导致pages数组的大小小于slab page管理结构的大小。<br>3.对于未使用的page管理链表其结点非常特殊，可以是由ngx_slab_page_t的数组构成<br>  也可以是单个的ngx_slab_page_t.<br>4.pages数组中的page是与slab page管理结构一一对应的，虽然slab page有多的。</p>
+<p>然后就是一些初始化数据，这儿仅考虑32位的情况。<br>ngx_pagesize = 4096;<br>ngx_pagesize_shift = 12;<br>ngx_slab_max_size = 2048;<br>ngx_slab_exact_size = 128;<br>ngx_slab_exact_shift = 7;<br>ngx_slab_min_size = 128;<br>ngx_slab_min_shift = 3;</p>
+<p>先看slab 内存管理的初始化过程，具体的代码分析如下：</p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/copycode.gif" alt="复制代码"></a></span></div>
+<pre><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">slab空间的初始化函数</span>
+<span style="color: rgba(0, 0, 255, 1)">void</span><span style="color: rgba(0, 0, 0, 1)">
+ngx_slab_init(ngx_slab_pool_t </span>*<span style="color: rgba(0, 0, 0, 1)">pool)
+{
+    u_char           </span>*<span style="color: rgba(0, 0, 0, 1)">p;
+    size_t            size;
+    ngx_int_t         m;
+    ngx_uint_t        i, n, pages;
+    ngx_slab_page_t  </span>*<span style="color: rgba(0, 0, 0, 1)">slots;
+
+    </span><span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> STUB 最大slab size的初始化</span><span style="color: rgba(0, 128, 0, 1)">*/</span>
+    <span style="color: rgba(0, 0, 255, 1)">if</span> (ngx_slab_max_size == <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">) {
+        ngx_slab_max_size </span>= ngx_pagesize / <span style="color: rgba(128, 0, 128, 1)">2</span><span style="color: rgba(0, 0, 0, 1)">;
+        ngx_slab_exact_size </span>= ngx_pagesize / (<span style="color: rgba(128, 0, 128, 1)">8</span> * <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(uintptr_t));
+        </span><span style="color: rgba(0, 0, 255, 1)">for</span> (n = ngx_slab_exact_size; n &gt;&gt;= <span style="color: rgba(128, 0, 128, 1)">1</span>; ngx_slab_exact_shift++<span style="color: rgba(0, 0, 0, 1)">) {
+            </span><span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> void </span><span style="color: rgba(0, 128, 0, 1)">*/</span><span style="color: rgba(0, 0, 0, 1)">
+        }
+    }
+    </span><span style="color: rgba(0, 128, 0, 1)">/**/</span>
+    <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算最小的slab大小</span>
+    pool-&gt;min_size = <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">跳过ngx_slab_page_t的空间，也即跳过slab header</span>
+    p = (u_char *) pool + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_pool_t);
+    size </span>= pool-&gt;end - p;   <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算剩余可用空间的大小</span>
+<span style="color: rgba(0, 0, 0, 1)">
+    ngx_slab_junk(p, size);
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">进行slot分级数组的初始化</span>
+    slots = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">) p;
+    n </span>= ngx_pagesize_shift - pool-&gt;min_shift;   <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算可分的级数，page_size为4kb时对应的shift为12，若
+                                                </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">最小可为8B，则shift为3，则对应可分为12-3,即8,16,32,64,
+                                                </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">128,256,512,1024,2048 9个分级。</span>
+    <span style="color: rgba(0, 0, 255, 1)">for</span> (i = <span style="color: rgba(128, 0, 128, 1)">0</span>; i &lt; n; i++<span style="color: rgba(0, 0, 0, 1)">) {
+         slots[i].slab </span>= <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+        slots[i].next </span>= &amp;slots[i];              <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">对应将每个next均初始化为自己</span>
+        slots[i].prev = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+    }
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">跳过slot分级数组区域</span>
+    p += n * <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_page_t);
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">由于每一个page均对应一个ngx_slab_page_t的管理结构，因此下面是计算剩余空间还可分配出多少页，不过这儿有疑问，后面讨论</span>
+    pages = (ngx_uint_t) (size / (ngx_pagesize + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_page_t)));
+
+    ngx_memzero(p, pages </span>* <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_page_t));
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">初始化pages指针的位置</span>
+    pool-&gt;pages = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">) p;
+
+    pool</span>-&gt;free.prev = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+    pool</span>-&gt;free.next = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">) p;
+
+    pool</span>-&gt;pages-&gt;slab =<span style="color: rgba(0, 0, 0, 1)"> pages;
+    pool</span>-&gt;pages-&gt;next = &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">free;
+    pool</span>-&gt;pages-&gt;prev = (uintptr_t) &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">free;
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">下面是进行内存的对齐操作</span>
+    pool-&gt;start = (u_char *<span style="color: rgba(0, 0, 0, 1)">)
+                   ngx_align_ptr((uintptr_t) p </span>+ pages * <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_page_t),
+                                 ngx_pagesize);
+    </span><span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">这个地方是进行对齐后的page调整，这个地方是我前面疑问的部分解决位置。</span>
+    m = pages - (pool-&gt;end - pool-&gt;start) /<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize;
+    </span><span style="color: rgba(0, 0, 255, 1)">if</span> (m &gt; <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">) {
+         pages </span>-=<span style="color: rgba(0, 0, 0, 1)"> m;
+        pool</span>-&gt;pages-&gt;slab =<span style="color: rgba(0, 0, 0, 1)"> pages;
+    }
+
+    pool</span>-&gt;log_ctx = &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">zero;
+    pool</span>-&gt;zero = <span style="color: rgba(128, 0, 0, 1)">'</span><span style="color: rgba(128, 0, 0, 1)">\0</span><span style="color: rgba(128, 0, 0, 1)">'</span><span style="color: rgba(0, 0, 0, 1)">;
+}</span></pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/copycode.gif" alt="复制代码"></a></span></div></div>
+<p>然后是内存申请过程：<br>step 1：根据申请size的大小，判断申请内存的方式：<br>    　　case 1：若大于ngx_slab_max_size则直接彩分配page的方式。<br>            　　　　　　调用ngx_slab_alloc_pages后跳转至step 5.<br>    　　case 2：若小于等于ngx_slab_max_size则根据size计算分级的级数。<br>            　　　　　　转step 2.<br>step 2：检查计算出的分级数对应的slot分级数组中是否存在可使用的页，<br>    　　　　若存在则转step 3,否则转step 4.<br>step 3：根据size的大小，进行不同的内存分配过程：<br>    　　case 1：size小于ngx_slab_exact_size时<br>        　　　　(1)遍历bitmap数组查找可用的chunk位置<br>        　　　　(2)完成chunk的标记<br>        　　　　(3)标记完成后检查chunk是否是对应的bitmap的最后一个被使用的，<br>           　　　　　若是，则进步检查page中是否还存在未使用的chunk，若不存在则<br>           　　　　　将page脱离出此slot分级数组的管理,标记page的类型为NGX_SLAB_SMALL.<br>        　　　　(4)计算申请到的chunk的内存起始地址，转至step 5.<br>    　　case 2：size等于ngx_slab_exact_size时<br>        　　　　(1)检查slab字段查找可用的chunk位置<br>        　　　　(2)同上<br>        　　　　(3)同上，不过page类型标记为NGX_SLAB_EXACT<br>        　　　　(4)同上<br>    　　case 3：size大于ngx_slab_exact_size时<br>        　　　　(1)从slab字段中提取出标记chunk使用的bitmap<br>        　　　　(2)同case 1 (1)<br>        　　　　(3)同case 2 (2)<br>        　　　　(4)同case 1 (3),不过page类型标记为NGX_SLAB_BIG<br>        　　　　(5)同case 1 (4)<br>step 4：调用ngx_slab_alloc_pages申请1页page,然后根据size情况完成page划分<br>    　　　　及bitmap的初始化标记。<br>    　　case 1：小于ngx_slab_exact_size时<br>        　　　　(1)计算需要使用的bitmap的个数<br>        　　　　(2)完成bitmap使用chunk的标记，同时标记即将分配出去的chunk<br>        　　　　(3)完成剩余的bitmap的初始化<br>        　　　　(4)设置page的类型为NGX_SLAB_SMALL<br>        　　　　(5)计算分配chunk的位置<br>    　　case 2：等于ngx_slab_exact_size时<br>        　　　　(1)完成即将分配的chunk的标记<br>        　　　　(2)设置page的类型为NGX_SLAB_EXACT<br>        　　　　(3)计算分配的chunk的位置<br>    　　case 3:<br>        　　　　(1)完成chunk的标记，及将chunk的大小同时存储于slab字段中<br>        　　　　(2)设置page的类型为NGX_SLAB_BIG<br>        　　　　(3)计算分配的chunk的位置<br>    完成以上情况处理后，跳至step 5<br>step 5：返回得到空间。</p>
+<p>下面看具体的代码：</p>
+<div class="cnblogs_code"><img id="code_img_closed_6519840c-15d5-44a0-a027-f758f8c150ba" class="code_img_closed" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ContractedBlock.gif" alt=""><img id="code_img_opened_6519840c-15d5-44a0-a027-f758f8c150ba" class="code_img_opened" style="display: none" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ExpandedBlockStart.gif" alt="">
+<div id="cnblogs_code_open_6519840c-15d5-44a0-a027-f758f8c150ba" class="cnblogs_code_hide">
+<pre><span style="color: rgba(0, 128, 128, 1)">  1</span> <span style="color: rgba(0, 0, 255, 1)">void</span> *
+<span style="color: rgba(0, 128, 128, 1)">  2</span> ngx_slab_alloc_locked(ngx_slab_pool_t *<span style="color: rgba(0, 0, 0, 1)">pool, size_t size)
+</span><span style="color: rgba(0, 128, 128, 1)">  3</span> <span style="color: rgba(0, 0, 0, 1)">{
+</span><span style="color: rgba(0, 128, 128, 1)">  4</span> <span style="color: rgba(0, 0, 0, 1)">    size_t            s;
+</span><span style="color: rgba(0, 128, 128, 1)">  5</span>     uintptr_t         p, n, m, mask, *<span style="color: rgba(0, 0, 0, 1)">bitmap;
+</span><span style="color: rgba(0, 128, 128, 1)">  6</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_uint_t        i, slot, shift, map;
+</span><span style="color: rgba(0, 128, 128, 1)">  7</span>     ngx_slab_page_t  *page, *prev, *<span style="color: rgba(0, 0, 0, 1)">slots;
+</span><span style="color: rgba(0, 128, 128, 1)">  8</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">case 1:请求的size大于最大的slot的大小，直接以页的形式分配空间。</span>
+<span style="color: rgba(0, 128, 128, 1)">  9</span>     <span style="color: rgba(0, 0, 255, 1)">if</span> (size &gt;=<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_max_size) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 10</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 11</span>          ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, ngx_cycle-&gt;log, <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">,
+</span><span style="color: rgba(0, 128, 128, 1)"> 12</span>                        <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">slab alloc: %uz</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">, size);
+</span><span style="color: rgba(0, 128, 128, 1)"> 13</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取page</span>
+<span style="color: rgba(0, 128, 128, 1)"> 14</span>         page = ngx_slab_alloc_pages(pool, (size + ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)"> 15</span>                                           &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift);
+</span><span style="color: rgba(0, 128, 128, 1)"> 16</span>         <span style="color: rgba(0, 0, 255, 1)">if</span><span style="color: rgba(0, 0, 0, 1)"> (page) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 17</span>              <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算具体的page的位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 18</span>             p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 19</span>             p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)"> 20</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 21</span>         } <span style="color: rgba(0, 0, 255, 1)">else</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)"> 22</span>             p = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 23</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)"> 24</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 25</span>         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 26</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)"> 27</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">case 2:请求的size小于等于2048，可用slot满足请求</span>
+<span style="color: rgba(0, 128, 128, 1)"> 28</span>     <span style="color: rgba(0, 0, 255, 1)">if</span> (size &gt; pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_size) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 29</span>          shift = <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 30</span>         <span style="color: rgba(0, 0, 255, 1)">for</span> (s = size - <span style="color: rgba(128, 0, 128, 1)">1</span>; s &gt;&gt;= <span style="color: rgba(128, 0, 128, 1)">1</span>; shift++) { <span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> void </span><span style="color: rgba(0, 128, 0, 1)">*/</span><span style="color: rgba(0, 0, 0, 1)"> }
+</span><span style="color: rgba(0, 128, 128, 1)"> 31</span>         slot = shift - pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 32</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 33</span>     } <span style="color: rgba(0, 0, 255, 1)">else</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)"> 34</span>          size = pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_size;
+</span><span style="color: rgba(0, 128, 128, 1)"> 35</span>         shift = pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 36</span>         slot = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 37</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)"> 38</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 39</span>     ngx_log_debug2(NGX_LOG_DEBUG_ALLOC, ngx_cycle-&gt;log, <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">,
+</span><span style="color: rgba(0, 128, 128, 1)"> 40</span>                    <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">slab alloc: %uz slot: %ui</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">, size, slot);
+</span><span style="color: rgba(0, 128, 128, 1)"> 41</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">取得分级数组的起始位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 42</span>     slots = (ngx_slab_page_t *) ((u_char *) pool + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_pool_t));
+</span><span style="color: rgba(0, 128, 128, 1)"> 43</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取对应的slot的用于取chunk的页</span>
+<span style="color: rgba(0, 128, 128, 1)"> 44</span>     page =<span style="color: rgba(0, 0, 0, 1)"> slots[slot].next;
+</span><span style="color: rgba(0, 128, 128, 1)"> 45</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">存在用于切割chunk的页</span>
+<span style="color: rgba(0, 128, 128, 1)"> 46</span>     <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;next !=<span style="color: rgba(0, 0, 0, 1)"> page) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 47</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">case 2.1:请求的大小小于可exact切割的chunk大小，即128,需要占用page中前面的chunk来作为chunk使用状况的位图</span>
+<span style="color: rgba(0, 128, 128, 1)"> 48</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (shift &lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_shift) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 49</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 50</span>             <span style="color: rgba(0, 0, 255, 1)">do</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)"> 51</span>                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算具体的page页的存放位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 52</span>                 p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 53</span>                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">得到bitmap起始存放的位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 54</span>                 bitmap = (uintptr_t *) (pool-&gt;start +<span style="color: rgba(0, 0, 0, 1)"> p);
+</span><span style="color: rgba(0, 128, 128, 1)"> 55</span>                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算对应shift大小的bitmap的个数</span>
+<span style="color: rgba(0, 128, 128, 1)"> 56</span>                 map = (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (ngx_pagesize_shift -<span style="color: rgba(0, 0, 0, 1)"> shift))
+</span><span style="color: rgba(0, 128, 128, 1)"> 57</span>                           / (<span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)"> 58</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 59</span>                 <span style="color: rgba(0, 0, 255, 1)">for</span> (n = <span style="color: rgba(128, 0, 128, 1)">0</span>; n &lt; map; n++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 60</span>                     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">查找未使用的chunk.</span>
+<span style="color: rgba(0, 128, 128, 1)"> 61</span>                     <span style="color: rgba(0, 0, 255, 1)">if</span> (bitmap[n] !=<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 62</span>                         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">依次检查bitmap的各位，以得到未使用的chunk.</span>
+<span style="color: rgba(0, 128, 128, 1)"> 63</span>                         <span style="color: rgba(0, 0, 255, 1)">for</span> (m = <span style="color: rgba(128, 0, 128, 1)">1</span>, i = <span style="color: rgba(128, 0, 128, 1)">0</span>; m; m &lt;&lt;= <span style="color: rgba(128, 0, 128, 1)">1</span>, i++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 64</span>                             <span style="color: rgba(0, 0, 255, 1)">if</span> ((bitmap[n] &amp;<span style="color: rgba(0, 0, 0, 1)"> m)) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 65</span>                                 <span style="color: rgba(0, 0, 255, 1)">continue</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 66</span> <span style="color: rgba(0, 0, 0, 1)">                            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 67</span>                             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">置使用标记</span>
+<span style="color: rgba(0, 128, 128, 1)"> 68</span>                             bitmap[n] |=<span style="color: rgba(0, 0, 0, 1)"> m;
+</span><span style="color: rgba(0, 128, 128, 1)"> 69</span>                             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算找到的chunk的偏移位置。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 70</span>                             i = ((n * <span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span>) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift)
+</span><span style="color: rgba(0, 128, 128, 1)"> 71</span>                                 + (i &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift);
+</span><span style="color: rgba(0, 128, 128, 1)"> 72</span>                             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">当每个bitmap标示的chunk刚好使用完时，都会去检查是否还有chunk未使用
+</span><span style="color: rgba(0, 128, 128, 1)"> 73</span>                             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">若chunk全部使用完，则将当前的page脱离下来。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 74</span>                             <span style="color: rgba(0, 0, 255, 1)">if</span> (bitmap[n] ==<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 75</span>                                 <span style="color: rgba(0, 0, 255, 1)">for</span> (n = n + <span style="color: rgba(128, 0, 128, 1)">1</span>; n &lt; map; n++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 76</span>                                      <span style="color: rgba(0, 0, 255, 1)">if</span> (bitmap[n] !=<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 77</span>                                          <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">确认了还有未使用的chunk直接返回。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 78</span>                                          p = (uintptr_t) bitmap +<span style="color: rgba(0, 0, 0, 1)"> i;
+</span><span style="color: rgba(0, 128, 128, 1)"> 79</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 80</span>                                          <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 81</span> <span style="color: rgba(0, 0, 0, 1)">                                     }
+</span><span style="color: rgba(0, 128, 128, 1)"> 82</span> <span style="color: rgba(0, 0, 0, 1)">                                }
+</span><span style="color: rgba(0, 128, 128, 1)"> 83</span>                                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">page页中的chunk都使用完了，将page脱离
+</span><span style="color: rgba(0, 128, 128, 1)"> 84</span>                                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">与NGX_SLAB_PAGE_MASK的反&amp;运算是为了去除之前设置的page类型标记以得到prev的地址。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 85</span>                                 prev = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)"> 86</span>                                             (page-&gt;prev &amp; ~<span style="color: rgba(0, 0, 0, 1)">NGX_SLAB_PAGE_MASK);
+</span><span style="color: rgba(0, 128, 128, 1)"> 87</span>                                 prev-&gt;next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)"> 88</span>                                 page-&gt;next-&gt;prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)"> 89</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 90</span>                                 page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)"> 91</span>                                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">置chunk的类型</span>
+<span style="color: rgba(0, 128, 128, 1)"> 92</span>                                 page-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SMALL;
+</span><span style="color: rgba(0, 128, 128, 1)"> 93</span> <span style="color: rgba(0, 0, 0, 1)">                            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 94</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 95</span>                             p = (uintptr_t) bitmap +<span style="color: rgba(0, 0, 0, 1)"> i;
+</span><span style="color: rgba(0, 128, 128, 1)"> 96</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 97</span>                             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 98</span> <span style="color: rgba(0, 0, 0, 1)">                        }
+</span><span style="color: rgba(0, 128, 128, 1)"> 99</span> <span style="color: rgba(0, 0, 0, 1)">                    }
+</span><span style="color: rgba(0, 128, 128, 1)">100</span> <span style="color: rgba(0, 0, 0, 1)">                }
+</span><span style="color: rgba(0, 128, 128, 1)">101</span> 
+<span style="color: rgba(0, 128, 128, 1)">102</span>                 page = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">103</span> 
+<span style="color: rgba(0, 128, 128, 1)">104</span>             } <span style="color: rgba(0, 0, 255, 1)">while</span><span style="color: rgba(0, 0, 0, 1)"> (page);
+</span><span style="color: rgba(0, 128, 128, 1)">105</span> 
+<span style="color: rgba(0, 128, 128, 1)">106</span>         } <span style="color: rgba(0, 0, 255, 1)">else</span> <span style="color: rgba(0, 0, 255, 1)">if</span> (shift ==<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_shift) {
+</span><span style="color: rgba(0, 128, 128, 1)">107</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">请求的大小刚好为exact的大小，即128,这时slab仅做bitmap使用</span>
+<span style="color: rgba(0, 128, 128, 1)">108</span>             <span style="color: rgba(0, 0, 255, 1)">do</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)">109</span>                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">直接比较slab看有空的chunk不。</span>
+<span style="color: rgba(0, 128, 128, 1)">110</span>                 <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;slab !=<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)">111</span>                     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">逐位比较，查找chunk.</span>
+<span style="color: rgba(0, 128, 128, 1)">112</span>                     <span style="color: rgba(0, 0, 255, 1)">for</span> (m = <span style="color: rgba(128, 0, 128, 1)">1</span>, i = <span style="color: rgba(128, 0, 128, 1)">0</span>; m; m &lt;&lt;= <span style="color: rgba(128, 0, 128, 1)">1</span>, i++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)">113</span>                         <span style="color: rgba(0, 0, 255, 1)">if</span> ((page-&gt;slab &amp;<span style="color: rgba(0, 0, 0, 1)"> m)) {
+</span><span style="color: rgba(0, 128, 128, 1)">114</span>                             <span style="color: rgba(0, 0, 255, 1)">continue</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">115</span> <span style="color: rgba(0, 0, 0, 1)">                        }
+</span><span style="color: rgba(0, 128, 128, 1)">116</span>                         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">置使用标记</span>
+<span style="color: rgba(0, 128, 128, 1)">117</span>                         page-&gt;slab |=<span style="color: rgba(0, 0, 0, 1)"> m;
+</span><span style="color: rgba(0, 128, 128, 1)">118</span>                         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">检查page中的chunk是否使用完,使用完则做脱离处理</span>
+<span style="color: rgba(0, 128, 128, 1)">119</span>                         <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;slab ==<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)">120</span>                              prev = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)">121</span>                                             (page-&gt;prev &amp; ~<span style="color: rgba(0, 0, 0, 1)">NGX_SLAB_PAGE_MASK);
+</span><span style="color: rgba(0, 128, 128, 1)">122</span>                             prev-&gt;next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">123</span>                             page-&gt;next-&gt;prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">124</span>                     
+<span style="color: rgba(0, 128, 128, 1)">125</span>                             page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)">126</span>                             page-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_EXACT;
+</span><span style="color: rgba(0, 128, 128, 1)">127</span> <span style="color: rgba(0, 0, 0, 1)">                        }
+</span><span style="color: rgba(0, 128, 128, 1)">128</span> 
+<span style="color: rgba(0, 128, 128, 1)">129</span>                         p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">130</span>                         p += i &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">131</span>                         p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)">132</span> 
+<span style="color: rgba(0, 128, 128, 1)">133</span>                         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">134</span> <span style="color: rgba(0, 0, 0, 1)">                    }
+</span><span style="color: rgba(0, 128, 128, 1)">135</span> <span style="color: rgba(0, 0, 0, 1)">                }
+</span><span style="color: rgba(0, 128, 128, 1)">136</span> 
+<span style="color: rgba(0, 128, 128, 1)">137</span>                 page = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">138</span> 
+<span style="color: rgba(0, 128, 128, 1)">139</span>             } <span style="color: rgba(0, 0, 255, 1)">while</span><span style="color: rgba(0, 0, 0, 1)"> (page);
+</span><span style="color: rgba(0, 128, 128, 1)">140</span> 
+<span style="color: rgba(0, 128, 128, 1)">141</span>         } <span style="color: rgba(0, 0, 255, 1)">else</span> { <span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> shift &gt; ngx_slab_exact_shift </span><span style="color: rgba(0, 128, 0, 1)">*/</span>
+<span style="color: rgba(0, 128, 128, 1)">142</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">case 2.3:申请的size大小128，但小于等于2048时。
+</span><span style="color: rgba(0, 128, 128, 1)">143</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">此时的slab同时存储bitmap及表示chunk大小的shift,高位为bitmap.
+</span><span style="color: rgba(0, 128, 128, 1)">144</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取bitmap的高位mask.</span>
+<span style="color: rgba(0, 128, 128, 1)">145</span>             n = ngx_pagesize_shift - (page-&gt;slab &amp;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SHIFT_MASK);
+</span><span style="color: rgba(0, 128, 128, 1)">146</span>             n = <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> n;
+</span><span style="color: rgba(0, 128, 128, 1)">147</span>             n = ((uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; n) - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">148</span>             mask = n &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_MAP_SHIFT;
+</span><span style="color: rgba(0, 128, 128, 1)">149</span> 
+<span style="color: rgba(0, 128, 128, 1)">150</span>             <span style="color: rgba(0, 0, 255, 1)">do</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)">151</span>                  <span style="color: rgba(0, 0, 255, 1)">if</span> ((page-&gt;slab &amp; NGX_SLAB_MAP_MASK) !=<span style="color: rgba(0, 0, 0, 1)"> mask) {
+</span><span style="color: rgba(0, 128, 128, 1)">152</span>                     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">逐位查找空的chunk.</span>
+<span style="color: rgba(0, 128, 128, 1)">153</span>                      <span style="color: rgba(0, 0, 255, 1)">for</span> (m = (uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; NGX_SLAB_MAP_SHIFT, i = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">154</span>                           m &amp;<span style="color: rgba(0, 0, 0, 1)"> mask;
+</span><span style="color: rgba(0, 128, 128, 1)">155</span>                          m &lt;&lt;= <span style="color: rgba(128, 0, 128, 1)">1</span>, i++<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)">156</span> <span style="color: rgba(0, 0, 0, 1)">                    {
+</span><span style="color: rgba(0, 128, 128, 1)">157</span>                          <span style="color: rgba(0, 0, 255, 1)">if</span> ((page-&gt;slab &amp;<span style="color: rgba(0, 0, 0, 1)"> m)) {
+</span><span style="color: rgba(0, 128, 128, 1)">158</span>                             <span style="color: rgba(0, 0, 255, 1)">continue</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">159</span> <span style="color: rgba(0, 0, 0, 1)">                        }
+</span><span style="color: rgba(0, 128, 128, 1)">160</span> 
+<span style="color: rgba(0, 128, 128, 1)">161</span>                         page-&gt;slab |=<span style="color: rgba(0, 0, 0, 1)"> m;
+</span><span style="color: rgba(0, 128, 128, 1)">162</span>                         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">检查page中的chunk是否使用完</span>
+<span style="color: rgba(0, 128, 128, 1)">163</span>                         <span style="color: rgba(0, 0, 255, 1)">if</span> ((page-&gt;slab &amp; NGX_SLAB_MAP_MASK) ==<span style="color: rgba(0, 0, 0, 1)"> mask) {
+</span><span style="color: rgba(0, 128, 128, 1)">164</span>                              prev = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)">165</span>                                             (page-&gt;prev &amp; ~<span style="color: rgba(0, 0, 0, 1)">NGX_SLAB_PAGE_MASK);
+</span><span style="color: rgba(0, 128, 128, 1)">166</span>                             prev-&gt;next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">167</span>                             page-&gt;next-&gt;prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">168</span> 
+<span style="color: rgba(0, 128, 128, 1)">169</span>                             page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)">170</span>                             page-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BIG;
+</span><span style="color: rgba(0, 128, 128, 1)">171</span> <span style="color: rgba(0, 0, 0, 1)">                        }
+</span><span style="color: rgba(0, 128, 128, 1)">172</span> 
+<span style="color: rgba(0, 128, 128, 1)">173</span>                         p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">174</span>                         p += i &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">175</span>                         p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)">176</span> 
+<span style="color: rgba(0, 128, 128, 1)">177</span>                         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">178</span> <span style="color: rgba(0, 0, 0, 1)">                    }
+</span><span style="color: rgba(0, 128, 128, 1)">179</span> <span style="color: rgba(0, 0, 0, 1)">                }
+</span><span style="color: rgba(0, 128, 128, 1)">180</span> 
+<span style="color: rgba(0, 128, 128, 1)">181</span>                 page = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">182</span> 
+<span style="color: rgba(0, 128, 128, 1)">183</span>             } <span style="color: rgba(0, 0, 255, 1)">while</span><span style="color: rgba(0, 0, 0, 1)"> (page);
+</span><span style="color: rgba(0, 128, 128, 1)">184</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">185</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">186</span> 
+<span style="color: rgba(0, 128, 128, 1)">187</span>     page = ngx_slab_alloc_pages(pool, <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">188</span> 
+<span style="color: rgba(0, 128, 128, 1)">189</span>     <span style="color: rgba(0, 0, 255, 1)">if</span><span style="color: rgba(0, 0, 0, 1)"> (page) {
+</span><span style="color: rgba(0, 128, 128, 1)">190</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (shift &lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_shift) {
+</span><span style="color: rgba(0, 128, 128, 1)">191</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">page用于小于128的chunk时，
+</span><span style="color: rgba(0, 128, 128, 1)">192</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取page的存放位置</span>
+<span style="color: rgba(0, 128, 128, 1)">193</span>             p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">194</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取bitmap的开始位置</span>
+<span style="color: rgba(0, 128, 128, 1)">195</span>             bitmap = (uintptr_t *) (pool-&gt;start +<span style="color: rgba(0, 0, 0, 1)"> p);
+</span><span style="color: rgba(0, 128, 128, 1)">196</span> 
+<span style="color: rgba(0, 128, 128, 1)">197</span>             s = <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">198</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算chunk的个数</span>
+<span style="color: rgba(0, 128, 128, 1)">199</span>             n = (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (ngx_pagesize_shift - shift)) / <span style="color: rgba(128, 0, 128, 1)">8</span> /<span style="color: rgba(0, 0, 0, 1)"> s;
+</span><span style="color: rgba(0, 128, 128, 1)">200</span> 
+<span style="color: rgba(0, 128, 128, 1)">201</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (n == <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)">202</span>                 n = <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">203</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">204</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">给bitmap占用的chunk置标记，同时对将要使用的chunk进行标记。</span>
+<span style="color: rgba(0, 128, 128, 1)">205</span>             bitmap[<span style="color: rgba(128, 0, 128, 1)">0</span>] = (<span style="color: rgba(128, 0, 128, 1)">2</span> &lt;&lt; n) - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">206</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算要使用的bitmap的个数</span>
+<span style="color: rgba(0, 128, 128, 1)">207</span>             map = (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (ngx_pagesize_shift - shift)) / (<span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">208</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">从第二个开始初始化bitmap.</span>
+<span style="color: rgba(0, 128, 128, 1)">209</span>             <span style="color: rgba(0, 0, 255, 1)">for</span> (i = <span style="color: rgba(128, 0, 128, 1)">1</span>; i &lt; map; i++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)">210</span>                 bitmap[i] = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">211</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">212</span> 
+<span style="color: rgba(0, 128, 128, 1)">213</span>             page-&gt;slab =<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">214</span>             page-&gt;next = &amp;<span style="color: rgba(0, 0, 0, 1)">slots[slot];
+</span><span style="color: rgba(0, 128, 128, 1)">215</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">设置page的类型，低位存储</span>
+<span style="color: rgba(0, 128, 128, 1)">216</span>             page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SMALL;
+</span><span style="color: rgba(0, 128, 128, 1)">217</span> 
+<span style="color: rgba(0, 128, 128, 1)">218</span>             slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">219</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算申请的chunk的位置。</span>
+<span style="color: rgba(0, 128, 128, 1)">220</span>             p = ((page - pool-&gt;pages) &lt;&lt; ngx_pagesize_shift) + s *<span style="color: rgba(0, 0, 0, 1)"> n;
+</span><span style="color: rgba(0, 128, 128, 1)">221</span>             p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)">222</span> 
+<span style="color: rgba(0, 128, 128, 1)">223</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">224</span> 
+<span style="color: rgba(0, 128, 128, 1)">225</span>         } <span style="color: rgba(0, 0, 255, 1)">else</span> <span style="color: rgba(0, 0, 255, 1)">if</span> (shift ==<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_shift) {
+</span><span style="color: rgba(0, 128, 128, 1)">226</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">chunk的大小正好为128时，此时处理很简单</span>
+<span style="color: rgba(0, 128, 128, 1)">227</span>             page-&gt;slab = <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">228</span>             page-&gt;next = &amp;<span style="color: rgba(0, 0, 0, 1)">slots[slot];
+</span><span style="color: rgba(0, 128, 128, 1)">229</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">置chunk类型</span>
+<span style="color: rgba(0, 128, 128, 1)">230</span>             page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_EXACT;
+</span><span style="color: rgba(0, 128, 128, 1)">231</span> 
+<span style="color: rgba(0, 128, 128, 1)">232</span>             slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">233</span> 
+<span style="color: rgba(0, 128, 128, 1)">234</span>             p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">235</span>             p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)">236</span> 
+<span style="color: rgba(0, 128, 128, 1)">237</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">238</span> 
+<span style="color: rgba(0, 128, 128, 1)">239</span>         } <span style="color: rgba(0, 0, 255, 1)">else</span> { <span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> shift &gt; ngx_slab_exact_shift </span><span style="color: rgba(0, 128, 0, 1)">*/</span>
+<span style="color: rgba(0, 128, 128, 1)">240</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">大于128时，slab要存储bitmap及表示chunk大小的shift.</span>
+<span style="color: rgba(0, 128, 128, 1)">241</span>              page-&gt;slab = ((uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; NGX_SLAB_MAP_SHIFT) |<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">242</span>             page-&gt;next = &amp;<span style="color: rgba(0, 0, 0, 1)">slots[slot];
+</span><span style="color: rgba(0, 128, 128, 1)">243</span>             page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BIG;
+</span><span style="color: rgba(0, 128, 128, 1)">244</span> 
+<span style="color: rgba(0, 128, 128, 1)">245</span>             slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">246</span> 
+<span style="color: rgba(0, 128, 128, 1)">247</span>             p = (page - pool-&gt;pages) &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">248</span>             p += (uintptr_t) pool-&gt;<span style="color: rgba(0, 0, 0, 1)">start;
+</span><span style="color: rgba(0, 128, 128, 1)">249</span> 
+<span style="color: rgba(0, 128, 128, 1)">250</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">251</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">252</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">253</span> 
+<span style="color: rgba(0, 128, 128, 1)">254</span>     p = <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">255</span> 
+<span style="color: rgba(0, 128, 128, 1)">256</span> <span style="color: rgba(0, 0, 0, 1)">done:
+</span><span style="color: rgba(0, 128, 128, 1)">257</span> 
+<span style="color: rgba(0, 128, 128, 1)">258</span>      ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, ngx_cycle-&gt;log, <span style="color: rgba(128, 0, 128, 1)">0</span>, <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">slab alloc: %p</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">, p);
+</span><span style="color: rgba(0, 128, 128, 1)">259</span> 
+<span style="color: rgba(0, 128, 128, 1)">260</span>     <span style="color: rgba(0, 0, 255, 1)">return</span> (<span style="color: rgba(0, 0, 255, 1)">void</span> *<span style="color: rgba(0, 0, 0, 1)">) p;
+</span><span style="color: rgba(0, 128, 128, 1)">261</span> }</pre>
+</div>
+<span class="cnblogs_code_collapse">View Code</span></div>
+<p>然后补充下，ngx_slab_alloc_pages函数的代码分析:</p>
+<div class="cnblogs_code"><img id="code_img_closed_765850e9-cbb6-4f3b-b97e-f156625d8743" class="code_img_closed" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ContractedBlock.gif" alt=""><img id="code_img_opened_765850e9-cbb6-4f3b-b97e-f156625d8743" class="code_img_opened" style="display: none" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ExpandedBlockStart.gif" alt="">
+<div id="cnblogs_code_open_765850e9-cbb6-4f3b-b97e-f156625d8743" class="cnblogs_code_hide">
+<pre><span style="color: rgba(0, 128, 128, 1)"> 1</span> <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">这个函数是用来申请page的，此函数的实现也为nginx slab在申请大内存的处理时留下了隐患。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 2</span> <span style="color: rgba(0, 0, 255, 1)">static</span> ngx_slab_page_t *
+<span style="color: rgba(0, 128, 128, 1)"> 3</span> ngx_slab_alloc_pages(ngx_slab_pool_t *<span style="color: rgba(0, 0, 0, 1)">pool, ngx_uint_t pages)
+</span><span style="color: rgba(0, 128, 128, 1)"> 4</span> <span style="color: rgba(0, 0, 0, 1)">{
+</span><span style="color: rgba(0, 128, 128, 1)"> 5</span>     ngx_slab_page_t  *page, *<span style="color: rgba(0, 0, 0, 1)">p;
+</span><span style="color: rgba(0, 128, 128, 1)"> 6</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">在slab page的管理页中查找，找到slab管理块中能够一次满足要求的slab,这和slab page的管理时不合并有关</span>
+<span style="color: rgba(0, 128, 128, 1)"> 7</span>     <span style="color: rgba(0, 0, 255, 1)">for</span> (page = pool-&gt;free.next; page != &amp;pool-&gt;free; page = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 8</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">找到了合适的slab</span>
+<span style="color: rgba(0, 128, 128, 1)"> 9</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;slab &gt;=<span style="color: rgba(0, 0, 0, 1)"> pages) {
+</span><span style="color: rgba(0, 128, 128, 1)">10</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">对于大于请求page数的情况，会将前pages个切分出去,page[pages]刚好为将
+</span><span style="color: rgba(0, 128, 128, 1)">11</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">pages个切分出去后，逗留下的第一个，正好作为构建新结点的第一个。下面
+</span><span style="color: rgba(0, 128, 128, 1)">12</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">其实是一个双向链表插入及删除节点时的操作</span>
+<span style="color: rgba(0, 128, 128, 1)">13</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;slab &gt;<span style="color: rgba(0, 0, 0, 1)"> pages) {
+</span><span style="color: rgba(0, 128, 128, 1)">14</span>                 page[pages].slab = page-&gt;slab -<span style="color: rgba(0, 0, 0, 1)"> pages;
+</span><span style="color: rgba(0, 128, 128, 1)">15</span>                 page[pages].next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">16</span>                 page[pages].prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">17</span> 
+<span style="color: rgba(0, 128, 128, 1)">18</span>                 p = (ngx_slab_page_t *) page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">19</span>                 p-&gt;next = &amp;<span style="color: rgba(0, 0, 0, 1)">page[pages];
+</span><span style="color: rgba(0, 128, 128, 1)">20</span>                 page-&gt;next-&gt;prev = (uintptr_t) &amp;<span style="color: rgba(0, 0, 0, 1)">page[pages];
+</span><span style="color: rgba(0, 128, 128, 1)">21</span> 
+<span style="color: rgba(0, 128, 128, 1)">22</span>             } <span style="color: rgba(0, 0, 255, 1)">else</span><span style="color: rgba(0, 0, 0, 1)"> {
+</span><span style="color: rgba(0, 128, 128, 1)">23</span>                 <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">恰好等于时，不用进行切分直接删除节点</span>
+<span style="color: rgba(0, 128, 128, 1)">24</span>                 p = (ngx_slab_page_t *) page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">25</span>                 p-&gt;next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">26</span>                 page-&gt;next-&gt;prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">27</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">28</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">修改page对应的状态 </span>
+<span style="color: rgba(0, 128, 128, 1)">29</span>             page-&gt;slab = pages |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE_START;
+</span><span style="color: rgba(0, 128, 128, 1)">30</span>             page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)">31</span>             page-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE;
+</span><span style="color: rgba(0, 128, 128, 1)">32</span> 
+<span style="color: rgba(0, 128, 128, 1)">33</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (--pages == <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)">34</span>                 <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">35</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">36</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">对于pages大于1的情况，还处理非第一个page的状态，修改为BUSY</span>
+<span style="color: rgba(0, 128, 128, 1)">37</span>             <span style="color: rgba(0, 0, 255, 1)">for</span> (p = page + <span style="color: rgba(128, 0, 128, 1)">1</span>; pages; pages--<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)">38</span>                 p-&gt;slab =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE_BUSY;
+</span><span style="color: rgba(0, 128, 128, 1)">39</span>                 p-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)">40</span>                 p-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE;
+</span><span style="color: rgba(0, 128, 128, 1)">41</span>                 p++<span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">42</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">43</span> 
+<span style="color: rgba(0, 128, 128, 1)">44</span>             <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">45</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">46</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">47</span> 
+<span style="color: rgba(0, 128, 128, 1)">48</span>     ngx_slab_error(pool, NGX_LOG_CRIT, <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_alloc() failed: no memory</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">49</span> 
+<span style="color: rgba(0, 128, 128, 1)">50</span>     <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)"> NULL;
+</span><span style="color: rgba(0, 128, 128, 1)">51</span> }</pre>
+</div>
+<span class="cnblogs_code_collapse">View Code</span></div>
+<p>下面是slab内存管理机制的释放过程分析：<br>step 1：判断异常情况，得到释放空间位于的page的slab 管理结构的位置及page的位置。<br>step 2：获取释放空间位于的page的类型，根据类型进行处理：<br>    　　case 1：NGX_SLAB_SMALL<br>        　　　　(1)从slab字段中取出chunk的大小<br>        　　　　(2)计算要释放的空间位于page中的chunk的偏移<br>        　　　　(3)计算对应chunk位于bitmap数组中的第几个bitmap<br>        　　　　(4)计算对应bitmap的地址<br>        　　　　(5)检查对应的chunk的bitmap中的标记，若为未释放标记则进行后面的处理，否则<br>           　　　　　　直接返回已经释放。<br>        　　　　(6)将释放空间的page重新置于对应分级数组的管理下<br>        　　　　(7)置释放标记，同时检查页中管理的chunk是否均为未使用，若全为，则调用<br>           　　　　　　ngx_slab_free_pages进行page的回收，即将其加入slab page的管理之下。<br>           　　　　　　否则返回。<br>    　　case 2：NGX_SLAB_EXACT<br>        　　　　(1)同case 1 (2)<br>        　　　　(2)同case 1 (5)<br>        　　　　(3)同case 1 (7)<br>    　　case 3：NGX_SLAB_BIG<br>        　　　　(1)从slab字段中提取出bitmap及chunk的大小<br>        　　　　(2)同case 1 (2)<br>        　　　　(3)同case 1 (5)<br>        　　　　(4)同case 1 (7)<br>    　　　case 4：NGX_SLAB_PAGE<br>        　　　　好像是处理一些页相关的释放情况，不详细讨论<br>step 3：返回</p>
+<p>下面看具体代码：</p>
+<div class="cnblogs_code"><img id="code_img_closed_38b02f7f-5733-41b8-baa3-396ad483a47b" class="code_img_closed" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ContractedBlock.gif" alt=""><img id="code_img_opened_38b02f7f-5733-41b8-baa3-396ad483a47b" class="code_img_opened" style="display: none" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ExpandedBlockStart.gif" alt="">
+<div id="cnblogs_code_open_38b02f7f-5733-41b8-baa3-396ad483a47b" class="cnblogs_code_hide">
+<pre><span style="color: rgba(0, 128, 128, 1)">  1</span> <span style="color: rgba(0, 0, 255, 1)">void</span>
+<span style="color: rgba(0, 128, 128, 1)">  2</span> ngx_slab_free_locked(ngx_slab_pool_t *pool, <span style="color: rgba(0, 0, 255, 1)">void</span> *<span style="color: rgba(0, 0, 0, 1)">p)
+</span><span style="color: rgba(0, 128, 128, 1)">  3</span> <span style="color: rgba(0, 0, 0, 1)">{
+</span><span style="color: rgba(0, 128, 128, 1)">  4</span> <span style="color: rgba(0, 0, 0, 1)">    size_t            size;
+</span><span style="color: rgba(0, 128, 128, 1)">  5</span>     uintptr_t         slab, m, *<span style="color: rgba(0, 0, 0, 1)">bitmap;
+</span><span style="color: rgba(0, 128, 128, 1)">  6</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_uint_t        n, type, slot, shift, map;
+</span><span style="color: rgba(0, 128, 128, 1)">  7</span>     ngx_slab_page_t  *slots, *<span style="color: rgba(0, 0, 0, 1)">page;
+</span><span style="color: rgba(0, 128, 128, 1)">  8</span> 
+<span style="color: rgba(0, 128, 128, 1)">  9</span>     ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, ngx_cycle-&gt;log, <span style="color: rgba(128, 0, 128, 1)">0</span>, <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">slab free: %p</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">, p);
+</span><span style="color: rgba(0, 128, 128, 1)"> 10</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">判断异常情况</span>
+<span style="color: rgba(0, 128, 128, 1)"> 11</span>     <span style="color: rgba(0, 0, 255, 1)">if</span> ((u_char *) p &lt; pool-&gt;start || (u_char *) p &gt; pool-&gt;<span style="color: rgba(0, 0, 0, 1)">end) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 12</span>         ngx_slab_error(pool, NGX_LOG_ALERT, <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_free(): outside of pool</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)"> 13</span>         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> fail;
+</span><span style="color: rgba(0, 128, 128, 1)"> 14</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)"> 15</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算释放的page的偏移</span>
+<span style="color: rgba(0, 128, 128, 1)"> 16</span>     n = ((u_char *) p - pool-&gt;start) &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 17</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取对应slab_page管理结构的位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 18</span>     page = &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">pages[n];
+</span><span style="color: rgba(0, 128, 128, 1)"> 19</span>     slab = page-&gt;<span style="color: rgba(0, 0, 0, 1)">slab;
+</span><span style="color: rgba(0, 128, 128, 1)"> 20</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">获取page的类型</span>
+<span style="color: rgba(0, 128, 128, 1)"> 21</span>     type = page-&gt;prev &amp;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE_MASK;
+</span><span style="color: rgba(0, 128, 128, 1)"> 22</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 23</span>     <span style="color: rgba(0, 0, 255, 1)">switch</span><span style="color: rgba(0, 0, 0, 1)"> (type) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 24</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">page类型为小于128时。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 25</span>     <span style="color: rgba(0, 0, 255, 1)">case</span><span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SMALL:
+</span><span style="color: rgba(0, 128, 128, 1)"> 26</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">此时chunk的大小存放于slab中。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 27</span>         shift = slab &amp;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SHIFT_MASK;
+</span><span style="color: rgba(0, 128, 128, 1)"> 28</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算chunk的大小</span>
+<span style="color: rgba(0, 128, 128, 1)"> 29</span>         size = <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 30</span>         
+<span style="color: rgba(0, 128, 128, 1)"> 31</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> ((uintptr_t) p &amp; (size - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 32</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> wrong_chunk;
+</span><span style="color: rgba(0, 128, 128, 1)"> 33</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)"> 34</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">这段特别巧妙，由于前面对页进行了内存对齐的处理，因此下面的式子可直接
+</span><span style="color: rgba(0, 128, 128, 1)"> 35</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">求出p位于的chunk偏移，即是page中的第几个chunk.</span>
+<span style="color: rgba(0, 128, 128, 1)"> 36</span>         n = ((uintptr_t) p &amp; (ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span>)) &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 37</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算chunk位于bitmap管理的chunk的偏移，注意对2的n次方的取余操作的实现。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 38</span>         m = (uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (n &amp; (<span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span> - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">));
+</span><span style="color: rgba(0, 128, 128, 1)"> 39</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算p指向的chunk位于第几个bitmap中。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 40</span>         n /= (<span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)"> 41</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算bitmap的起始位置</span>
+<span style="color: rgba(0, 128, 128, 1)"> 42</span>         bitmap = (uintptr_t *) ((uintptr_t) p &amp; ~(ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">));
+</span><span style="color: rgba(0, 128, 128, 1)"> 43</span>         <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">判断是否处于free状态。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 44</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (bitmap[n] &amp;<span style="color: rgba(0, 0, 0, 1)"> m) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 45</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">将page插入到对应slot分级数组管理的slab链表中，位于头部</span>
+<span style="color: rgba(0, 128, 128, 1)"> 46</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;next ==<span style="color: rgba(0, 0, 0, 1)"> NULL) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 47</span>                 slots = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)"> 48</span>                                    ((u_char *) pool + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_pool_t));
+</span><span style="color: rgba(0, 128, 128, 1)"> 49</span>                 slot = shift - pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+</span><span style="color: rgba(0, 128, 128, 1)"> 50</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 51</span>                 page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> slots[slot].next;
+</span><span style="color: rgba(0, 128, 128, 1)"> 52</span>                 slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)"> 53</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 54</span>                 page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SMALL;
+</span><span style="color: rgba(0, 128, 128, 1)"> 55</span>                 page-&gt;next-&gt;prev = (uintptr_t) page |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SMALL;
+</span><span style="color: rgba(0, 128, 128, 1)"> 56</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 57</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">置释放标记</span>
+<span style="color: rgba(0, 128, 128, 1)"> 58</span>             bitmap[n] &amp;= ~<span style="color: rgba(0, 0, 0, 1)">m;
+</span><span style="color: rgba(0, 128, 128, 1)"> 59</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算chunk的个数</span>
+<span style="color: rgba(0, 128, 128, 1)"> 60</span>             n = (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (ngx_pagesize_shift - shift)) / <span style="color: rgba(128, 0, 128, 1)">8</span> / (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift);
+</span><span style="color: rgba(0, 128, 128, 1)"> 61</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 62</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (n == <span style="color: rgba(128, 0, 128, 1)">0</span><span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 63</span>                 n = <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 64</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 65</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">检查首个bitmap对bitmap占用chunk的标记情况。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 66</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (bitmap[<span style="color: rgba(128, 0, 128, 1)">0</span>] &amp; ~(((uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; n) - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 67</span>                 <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 68</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 69</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算bitmap的个数</span>
+<span style="color: rgba(0, 128, 128, 1)"> 70</span>             map = (<span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; (ngx_pagesize_shift - shift)) / (<span style="color: rgba(0, 0, 255, 1)">sizeof</span>(uintptr_t) * <span style="color: rgba(128, 0, 128, 1)">8</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)"> 71</span>             
+<span style="color: rgba(0, 128, 128, 1)"> 72</span>             <span style="color: rgba(0, 0, 255, 1)">for</span> (n = <span style="color: rgba(128, 0, 128, 1)">1</span>; n &lt; map; n++<span style="color: rgba(0, 0, 0, 1)">) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 73</span>                 <span style="color: rgba(0, 0, 255, 1)">if</span><span style="color: rgba(0, 0, 0, 1)"> (bitmap[n]) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 74</span>                     <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 75</span> <span style="color: rgba(0, 0, 0, 1)">                }
+</span><span style="color: rgba(0, 128, 128, 1)"> 76</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)"> 77</span>             <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">如果释放后page中没有在使用的chunk，则进行进一步的回收，改用slab_page进行管理</span>
+<span style="color: rgba(0, 128, 128, 1)"> 78</span>             ngx_slab_free_pages(pool, page, <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)"> 79</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 80</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)"> 81</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)"> 82</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 83</span>         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> chunk_already_free;
+</span><span style="color: rgba(0, 128, 128, 1)"> 84</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 85</span>     <span style="color: rgba(0, 0, 255, 1)">case</span><span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_EXACT:
+</span><span style="color: rgba(0, 128, 128, 1)"> 86</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 87</span>         m = (uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;
+<span style="color: rgba(0, 128, 128, 1)"> 88</span>                 (((uintptr_t) p &amp; (ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span>)) &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_shift);
+</span><span style="color: rgba(0, 128, 128, 1)"> 89</span>         size =<span style="color: rgba(0, 0, 0, 1)"> ngx_slab_exact_size;
+</span><span style="color: rgba(0, 128, 128, 1)"> 90</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 91</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> ((uintptr_t) p &amp; (size - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 92</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> wrong_chunk;
+</span><span style="color: rgba(0, 128, 128, 1)"> 93</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)"> 94</span> 
+<span style="color: rgba(0, 128, 128, 1)"> 95</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (slab &amp;<span style="color: rgba(0, 0, 0, 1)"> m) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 96</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (slab ==<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)"> 97</span>                 slots = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)"> 98</span>                                    ((u_char *) pool + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_pool_t));
+</span><span style="color: rgba(0, 128, 128, 1)"> 99</span>                 slot = ngx_slab_exact_shift - pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">100</span> 
+<span style="color: rgba(0, 128, 128, 1)">101</span>                 page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> slots[slot].next;
+</span><span style="color: rgba(0, 128, 128, 1)">102</span>                 slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">103</span> 
+<span style="color: rgba(0, 128, 128, 1)">104</span>                 page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_EXACT;
+</span><span style="color: rgba(0, 128, 128, 1)">105</span>                 page-&gt;next-&gt;prev = (uintptr_t) page |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_EXACT;
+</span><span style="color: rgba(0, 128, 128, 1)">106</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">107</span> 
+<span style="color: rgba(0, 128, 128, 1)">108</span>             page-&gt;slab &amp;= ~<span style="color: rgba(0, 0, 0, 1)">m;
+</span><span style="color: rgba(0, 128, 128, 1)">109</span> 
+<span style="color: rgba(0, 128, 128, 1)">110</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;<span style="color: rgba(0, 0, 0, 1)">slab) {
+</span><span style="color: rgba(0, 128, 128, 1)">111</span>                 <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">112</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">113</span> 
+<span style="color: rgba(0, 128, 128, 1)">114</span>             ngx_slab_free_pages(pool, page, <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">115</span> 
+<span style="color: rgba(0, 128, 128, 1)">116</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">117</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">118</span> 
+<span style="color: rgba(0, 128, 128, 1)">119</span>         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> chunk_already_free;
+</span><span style="color: rgba(0, 128, 128, 1)">120</span> 
+<span style="color: rgba(0, 128, 128, 1)">121</span>     <span style="color: rgba(0, 0, 255, 1)">case</span><span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BIG:
+</span><span style="color: rgba(0, 128, 128, 1)">122</span> 
+<span style="color: rgba(0, 128, 128, 1)">123</span>         shift = slab &amp;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_SHIFT_MASK;
+</span><span style="color: rgba(0, 128, 128, 1)">124</span>         size = <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> shift;
+</span><span style="color: rgba(0, 128, 128, 1)">125</span> 
+<span style="color: rgba(0, 128, 128, 1)">126</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> ((uintptr_t) p &amp; (size - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)) {
+</span><span style="color: rgba(0, 128, 128, 1)">127</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> wrong_chunk;
+</span><span style="color: rgba(0, 128, 128, 1)">128</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">129</span> 
+<span style="color: rgba(0, 128, 128, 1)">130</span>         m = (uintptr_t) <span style="color: rgba(128, 0, 128, 1)">1</span> &lt;&lt; ((((uintptr_t) p &amp; (ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span>)) &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> shift)
+</span><span style="color: rgba(0, 128, 128, 1)">131</span>                               +<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_MAP_SHIFT);
+</span><span style="color: rgba(0, 128, 128, 1)">132</span> 
+<span style="color: rgba(0, 128, 128, 1)">133</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (slab &amp;<span style="color: rgba(0, 0, 0, 1)"> m) {
+</span><span style="color: rgba(0, 128, 128, 1)">134</span> 
+<span style="color: rgba(0, 128, 128, 1)">135</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;next ==<span style="color: rgba(0, 0, 0, 1)"> NULL) {
+</span><span style="color: rgba(0, 128, 128, 1)">136</span>                 slots = (ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">)
+</span><span style="color: rgba(0, 128, 128, 1)">137</span>                                    ((u_char *) pool + <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_pool_t));
+</span><span style="color: rgba(0, 128, 128, 1)">138</span>                 slot = shift - pool-&gt;<span style="color: rgba(0, 0, 0, 1)">min_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">139</span> 
+<span style="color: rgba(0, 128, 128, 1)">140</span>                 page-&gt;next =<span style="color: rgba(0, 0, 0, 1)"> slots[slot].next;
+</span><span style="color: rgba(0, 128, 128, 1)">141</span>                 slots[slot].next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">142</span> 
+<span style="color: rgba(0, 128, 128, 1)">143</span>                 page-&gt;prev = (uintptr_t) &amp;slots[slot] |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BIG;
+</span><span style="color: rgba(0, 128, 128, 1)">144</span>                 page-&gt;next-&gt;prev = (uintptr_t) page |<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_BIG;
+</span><span style="color: rgba(0, 128, 128, 1)">145</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">146</span> 
+<span style="color: rgba(0, 128, 128, 1)">147</span>             page-&gt;slab &amp;= ~<span style="color: rgba(0, 0, 0, 1)">m;
+</span><span style="color: rgba(0, 128, 128, 1)">148</span> 
+<span style="color: rgba(0, 128, 128, 1)">149</span>             <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;slab &amp;<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_MAP_MASK) {
+</span><span style="color: rgba(0, 128, 128, 1)">150</span>                 <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">151</span> <span style="color: rgba(0, 0, 0, 1)">            }
+</span><span style="color: rgba(0, 128, 128, 1)">152</span> 
+<span style="color: rgba(0, 128, 128, 1)">153</span>             ngx_slab_free_pages(pool, page, <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">154</span> 
+<span style="color: rgba(0, 128, 128, 1)">155</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> done;
+</span><span style="color: rgba(0, 128, 128, 1)">156</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">157</span> 
+<span style="color: rgba(0, 128, 128, 1)">158</span>         <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> chunk_already_free;
+</span><span style="color: rgba(0, 128, 128, 1)">159</span> 
+<span style="color: rgba(0, 128, 128, 1)">160</span>     <span style="color: rgba(0, 0, 255, 1)">case</span><span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE:
+</span><span style="color: rgba(0, 128, 128, 1)">161</span> 
+<span style="color: rgba(0, 128, 128, 1)">162</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> ((uintptr_t) p &amp; (ngx_pagesize - <span style="color: rgba(128, 0, 128, 1)">1</span><span style="color: rgba(0, 0, 0, 1)">)) {
+</span><span style="color: rgba(0, 128, 128, 1)">163</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> wrong_chunk;
+</span><span style="color: rgba(0, 128, 128, 1)">164</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">165</span> 
+<span style="color: rgba(0, 128, 128, 1)">166</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (slab ==<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE_FREE) {
+</span><span style="color: rgba(0, 128, 128, 1)">167</span> <span style="color: rgba(0, 0, 0, 1)">            ngx_slab_error(pool, NGX_LOG_ALERT,
+</span><span style="color: rgba(0, 128, 128, 1)">168</span>                            <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_free(): page is already free</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">169</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> fail;
+</span><span style="color: rgba(0, 128, 128, 1)">170</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">171</span> 
+<span style="color: rgba(0, 128, 128, 1)">172</span>         <span style="color: rgba(0, 0, 255, 1)">if</span> (slab ==<span style="color: rgba(0, 0, 0, 1)"> NGX_SLAB_PAGE_BUSY) {
+</span><span style="color: rgba(0, 128, 128, 1)">173</span> <span style="color: rgba(0, 0, 0, 1)">            ngx_slab_error(pool, NGX_LOG_ALERT,
+</span><span style="color: rgba(0, 128, 128, 1)">174</span>                            <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_free(): pointer to wrong page</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">175</span>             <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> fail;
+</span><span style="color: rgba(0, 128, 128, 1)">176</span> <span style="color: rgba(0, 0, 0, 1)">        }
+</span><span style="color: rgba(0, 128, 128, 1)">177</span> 
+<span style="color: rgba(0, 128, 128, 1)">178</span>         n = ((u_char *) p - pool-&gt;start) &gt;&gt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift;
+</span><span style="color: rgba(0, 128, 128, 1)">179</span>         size = slab &amp; ~<span style="color: rgba(0, 0, 0, 1)">NGX_SLAB_PAGE_START;
+</span><span style="color: rgba(0, 128, 128, 1)">180</span> 
+<span style="color: rgba(0, 128, 128, 1)">181</span>         ngx_slab_free_pages(pool, &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">pages[n], size);
+</span><span style="color: rgba(0, 128, 128, 1)">182</span> 
+<span style="color: rgba(0, 128, 128, 1)">183</span>         ngx_slab_junk(p, size &lt;&lt;<span style="color: rgba(0, 0, 0, 1)"> ngx_pagesize_shift);
+</span><span style="color: rgba(0, 128, 128, 1)">184</span> 
+<span style="color: rgba(0, 128, 128, 1)">185</span>         <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">186</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">187</span> 
+<span style="color: rgba(0, 128, 128, 1)">188</span>     <span style="color: rgba(0, 128, 0, 1)">/*</span><span style="color: rgba(0, 128, 0, 1)"> not reached </span><span style="color: rgba(0, 128, 0, 1)">*/</span>
+<span style="color: rgba(0, 128, 128, 1)">189</span> 
+<span style="color: rgba(0, 128, 128, 1)">190</span>     <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">191</span> 
+<span style="color: rgba(0, 128, 128, 1)">192</span> <span style="color: rgba(0, 0, 0, 1)">done:
+</span><span style="color: rgba(0, 128, 128, 1)">193</span> 
+<span style="color: rgba(0, 128, 128, 1)">194</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_slab_junk(p, size);
+</span><span style="color: rgba(0, 128, 128, 1)">195</span> 
+<span style="color: rgba(0, 128, 128, 1)">196</span>     <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">197</span> 
+<span style="color: rgba(0, 128, 128, 1)">198</span> <span style="color: rgba(0, 0, 0, 1)">wrong_chunk:
+</span><span style="color: rgba(0, 128, 128, 1)">199</span> 
+<span style="color: rgba(0, 128, 128, 1)">200</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_slab_error(pool, NGX_LOG_ALERT,
+</span><span style="color: rgba(0, 128, 128, 1)">201</span>                    <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_free(): pointer to wrong chunk</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">202</span> 
+<span style="color: rgba(0, 128, 128, 1)">203</span>     <span style="color: rgba(0, 0, 255, 1)">goto</span><span style="color: rgba(0, 0, 0, 1)"> fail;
+</span><span style="color: rgba(0, 128, 128, 1)">204</span> 
+<span style="color: rgba(0, 128, 128, 1)">205</span> <span style="color: rgba(0, 0, 0, 1)">chunk_already_free:
+</span><span style="color: rgba(0, 128, 128, 1)">206</span> 
+<span style="color: rgba(0, 128, 128, 1)">207</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_slab_error(pool, NGX_LOG_ALERT,
+</span><span style="color: rgba(0, 128, 128, 1)">208</span>                    <span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(128, 0, 0, 1)">ngx_slab_free(): chunk is already free</span><span style="color: rgba(128, 0, 0, 1)">"</span><span style="color: rgba(0, 0, 0, 1)">);
+</span><span style="color: rgba(0, 128, 128, 1)">209</span> 
+<span style="color: rgba(0, 128, 128, 1)">210</span> <span style="color: rgba(0, 0, 0, 1)">fail:
+</span><span style="color: rgba(0, 128, 128, 1)">211</span> 
+<span style="color: rgba(0, 128, 128, 1)">212</span>     <span style="color: rgba(0, 0, 255, 1)">return</span><span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)">213</span> }</pre>
+</div>
+<span class="cnblogs_code_collapse">View Code</span></div>
+<p>补充ngx_slab_free_pages的代码分析：</p>
+<div class="cnblogs_code"><img id="code_img_closed_39683cd2-5bf2-45d6-bb02-7fbc118bc1b4" class="code_img_closed" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ContractedBlock.gif" alt=""><img id="code_img_opened_39683cd2-5bf2-45d6-bb02-7fbc118bc1b4" class="code_img_opened" style="display: none" src="./nginx slab内存管理 - doop-ymc - 博客园_files/ExpandedBlockStart.gif" alt="">
+<div id="cnblogs_code_open_39683cd2-5bf2-45d6-bb02-7fbc118bc1b4" class="cnblogs_code_hide">
+<pre><span style="color: rgba(0, 128, 128, 1)"> 1</span> <span style="color: rgba(0, 0, 255, 1)">static</span> <span style="color: rgba(0, 0, 255, 1)">void</span>
+<span style="color: rgba(0, 128, 128, 1)"> 2</span> ngx_slab_free_pages(ngx_slab_pool_t *pool, ngx_slab_page_t *<span style="color: rgba(0, 0, 0, 1)">page,
+</span><span style="color: rgba(0, 128, 128, 1)"> 3</span> <span style="color: rgba(0, 0, 0, 1)">    ngx_uint_t pages)
+</span><span style="color: rgba(0, 128, 128, 1)"> 4</span> <span style="color: rgba(0, 0, 0, 1)">{
+</span><span style="color: rgba(0, 128, 128, 1)"> 5</span>     ngx_slab_page_t  *<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)"> 6</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">计算结点后部跟的page的数目</span>
+<span style="color: rgba(0, 128, 128, 1)"> 7</span>     page-&gt;slab = pages--<span style="color: rgba(0, 0, 0, 1)">;
+</span><span style="color: rgba(0, 128, 128, 1)"> 8</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">对跟的page的page管理结构slab_page进行清空。</span>
+<span style="color: rgba(0, 128, 128, 1)"> 9</span>     <span style="color: rgba(0, 0, 255, 1)">if</span><span style="color: rgba(0, 0, 0, 1)"> (pages) {
+</span><span style="color: rgba(0, 128, 128, 1)">10</span>         ngx_memzero(&amp;page[<span style="color: rgba(128, 0, 128, 1)">1</span>], pages * <span style="color: rgba(0, 0, 255, 1)">sizeof</span><span style="color: rgba(0, 0, 0, 1)">(ngx_slab_page_t));
+</span><span style="color: rgba(0, 128, 128, 1)">11</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">12</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">如果page后面还跟有节点，则将其连接至page的前一个结点。</span>
+<span style="color: rgba(0, 128, 128, 1)">13</span>     <span style="color: rgba(0, 0, 255, 1)">if</span> (page-&gt;<span style="color: rgba(0, 0, 0, 1)">next) {
+</span><span style="color: rgba(0, 128, 128, 1)">14</span>         prev = (ngx_slab_page_t *) (page-&gt;prev &amp; ~<span style="color: rgba(0, 0, 0, 1)">NGX_SLAB_PAGE_MASK);
+</span><span style="color: rgba(0, 128, 128, 1)">15</span>         prev-&gt;next = page-&gt;<span style="color: rgba(0, 0, 0, 1)">next;
+</span><span style="color: rgba(0, 128, 128, 1)">16</span>         page-&gt;next-&gt;prev = page-&gt;<span style="color: rgba(0, 0, 0, 1)">prev;
+</span><span style="color: rgba(0, 128, 128, 1)">17</span> <span style="color: rgba(0, 0, 0, 1)">    }
+</span><span style="color: rgba(0, 128, 128, 1)">18</span>     <span style="color: rgba(0, 128, 0, 1)">//</span><span style="color: rgba(0, 128, 0, 1)">将page重新归于，slab_page的管理结构之下。放于管理结构的头部。</span>
+<span style="color: rgba(0, 128, 128, 1)">19</span>     page-&gt;prev = (uintptr_t) &amp;pool-&gt;<span style="color: rgba(0, 0, 0, 1)">free;
+</span><span style="color: rgba(0, 128, 128, 1)">20</span>     page-&gt;next = pool-&gt;<span style="color: rgba(0, 0, 0, 1)">free.next;
+</span><span style="color: rgba(0, 128, 128, 1)">21</span> 
+<span style="color: rgba(0, 128, 128, 1)">22</span>     page-&gt;next-&gt;prev =<span style="color: rgba(0, 0, 0, 1)"> (uintptr_t) page;
+</span><span style="color: rgba(0, 128, 128, 1)">23</span> 
+<span style="color: rgba(0, 128, 128, 1)">24</span>     pool-&gt;free.next =<span style="color: rgba(0, 0, 0, 1)"> page;
+</span><span style="color: rgba(0, 128, 128, 1)">25</span> }</pre>
+</div>
+<span class="cnblogs_code_collapse">View Code</span></div>
+<p>然后再看下slot分级数组对于page的管理：<br>初始化：初始化时，各个slot将未分配具体的page.<br>申请时：初始申请时没有page空间可用，然后会像slab page管理结构申请page空间，完成<br>        page的划分chunk及bitmap的初始后，会分配一块chunk以供使用。对于再次申请时<br>        会直接从page中取可用的chunk，当page时无可用的chunk时，此page页会暂时脱离<br>        slot分级数组的管理，即将其从对应链表中删除。<br>释放时:释放时完成空间的回收标记后，会将page插入到对应的slot管理链表的头部，然后<br>        会进一步检查些page是否全部chunk均未使用，若是，则进步回收此page将其置于<br>        slab page管理结构的管理之下。<br>具体如下图示:<br>BEGIN:</p>
+<p><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/07152715-84c99588573d46ae8d7805171d965c3c.jpg" alt=""></p>
+<p>AFTER:</p>
+<p><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/07152733-a976a1c8403e467d99efedab434a9f80.jpg" alt=""><br>..<br>最后就是对于slab管理机制对于使用一段时间后，对于大内存申请的处理会大概率返回失败<br>的情况分析。</p>
+<p>主要原因在于ngx_slab_free_pages函数里面，从函数中看出，每次回收页到slab page的管理<br>结构中时只会对page进行加入链表的操作，而没有如同伙伴算法的结点合并操作，这样经由<br>ngx_slab_alloc_pages申请大内存时，在查找一个结点拥有符合要求的page数目时，将不能<br>得到一个满足要求的节点，因为使用一段时间后，可能slab page管理结构中的各个结点均会<br>成为小的数目page的组合。导致申请大的内存失败。</p>
+<p>&nbsp;转载请注明出处：<a href="http://www.cnblogs.com/doop-ymc/p/3412572.html">http://www.cnblogs.com/doop-ymc/p/3412572.html</a></p>
+</div>
+<div id="MySignature"></div>
+<div class="clear"></div>
+<div id="blog_post_info_block">
+<div id="EntryTag">
+    标签: 
+            <a href="https://www.cnblogs.com/doop-ymc/tag/nginx/">nginx</a></div>
+
+    <div id="blog_post_info">
+<div id="green_channel">
+        <a href="javascript:void(0);" id="green_channel_digg" onclick="DiggIt(3412572,cb_blogId,1);green_channel_success(this,&#39;谢谢推荐！&#39;);">好文要顶</a>
+        <a id="green_channel_follow" onclick="follow(&#39;38d1e80c-9231-e311-8d02-90b11c0b17d6&#39;);" href="javascript:void(0);">关注我</a>
+    <a id="green_channel_favorite" onclick="AddToWz(cb_entryId);return false;" href="javascript:void(0);">收藏该文</a>
+    <a id="green_channel_weibo" href="javascript:void(0);" title="分享至新浪微博" onclick="ShareToTsina()"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/icon_weibo_24.png" alt=""></a>
+    <a id="green_channel_wechat" href="javascript:void(0);" title="分享至微信" onclick="shareOnWechat()"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/wechat.png" alt=""></a>
+</div>
+<div id="author_profile">
+    <div id="author_profile_info" class="author_profile_info">
+            <a href="https://home.cnblogs.com/u/doop-ymc/" target="_blank"><img src="./nginx slab内存管理 - doop-ymc - 博客园_files/sample_face.gif" class="author_avatar" alt=""></a>
+        <div id="author_profile_detail" class="author_profile_info">
+            <a href="https://home.cnblogs.com/u/doop-ymc/">doop-ymc</a><br>
+            <a href="https://home.cnblogs.com/u/doop-ymc/followees/">关注 - 0</a><br>
+            <a href="https://home.cnblogs.com/u/doop-ymc/followers/">粉丝 - 0</a>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="author_profile_honor"></div>
+    <div id="author_profile_follow">
+                <a href="javascript:void(0);" onclick="follow(&#39;38d1e80c-9231-e311-8d02-90b11c0b17d6&#39;);return false;">+加关注</a>
+    </div>
+</div>
+<div id="div_digg">
+    <div class="diggit" onclick="votePost(3412572,&#39;Digg&#39;)">
+        <span class="diggnum" id="digg_count">0</span>
+    </div>
+    <div class="buryit" onclick="votePost(3412572,&#39;Bury&#39;)">
+        <span class="burynum" id="bury_count">0</span>
+    </div>
+    <div class="clear"></div>
+    <div class="diggword" id="digg_tips">
+    </div>
+</div>
+
+<script type="text/javascript">
+    currentDiggType = 0;
+</script></div>
+    <div class="clear"></div>
+    <div id="post_next_prev">
+
+    <a href="https://www.cnblogs.com/doop-ymc/p/3404005.html" class="p_n_p_prefix">« </a> 上一篇：    <a href="https://www.cnblogs.com/doop-ymc/p/3404005.html" title="发布于 2013-11-02 17:37">copy-on-write学习</a>
+    <br>
+    <a href="https://www.cnblogs.com/doop-ymc/p/3418514.html" class="p_n_p_prefix">» </a> 下一篇：    <a href="https://www.cnblogs.com/doop-ymc/p/3418514.html" title="发布于 2013-11-11 21:11">nginx 内存池分析</a>
+
+</div>
+</div>
+        <div class="postDesc">posted on 
+<span id="post-date">2013-11-07 15:29</span>&nbsp;
+<a href="https://www.cnblogs.com/doop-ymc/">doop-ymc</a>&nbsp;
+阅读(<span id="post_view_count">4678</span>)&nbsp;
+评论(<span id="post_comment_count">0</span>)&nbsp;
+<a href="https://i.cnblogs.com/EditPosts.aspx?postid=3412572" rel="nofollow">编辑</a>&nbsp;
+<a href="javascript:void(0)" onclick="AddToWz(3412572);return false;">收藏</a></div>
+    </div>
+    <script src="./nginx slab内存管理 - doop-ymc - 博客园_files/highlight.min.js.下载"></script>
+<script>markdown_highlight();</script>
+<script>
+    var allowComments = true, cb_blogId = 165544, cb_blogApp = 'doop-ymc', cb_blogUserGuid = '38d1e80c-9231-e311-8d02-90b11c0b17d6';
+    var cb_entryId = 3412572, cb_entryCreatedDate = '2013-11-07 15:29', cb_postType = 1;
+    updatePostStats(
+        [cb_entryId],
+        function(id, count) { $("#post_view_count").text(count) },
+        function(id, count) { $("#post_comment_count").text(count) })
+</script>
+    <a name="!comments"></a>
+<div id="blog-comments-placeholder"></div>
+<div id="comment_form" class="commentform">
+    <a name="commentform"></a>
+    <div id="divCommentShow"></div>
+    <div id="comment_nav"><span id="span_refresh_tips"></span><a href="javascript:void(0);" onclick="return RefreshCommentList();" id="lnk_RefreshComments" runat="server" clientidmode="Static">刷新评论</a><a href="https://www.cnblogs.com/doop-ymc/p/3412572.html#" onclick="return RefreshPage();">刷新页面</a><a href="https://www.cnblogs.com/doop-ymc/p/3412572.html#top">返回顶部</a></div>
+    <div id="comment_form_container" style="visibility: visible;"><div class="login_tips">
+    登录后才能发表评论，立即 <a rel="nofollow" href="javascript:void(0);" class="underline" onclick="return login(&#39;commentform&#39;);">登录</a> 或
+    <a rel="nofollow" href="javascript:void(0);" class="underline" onclick="return register();">注册</a>，
+    <a href="https://www.cnblogs.com/">访问</a> 网站首页
+</div>
+<div class="under-comment-nav">
+        <a href="https://brands.cnblogs.com/aws/free" target="_blank" onclick="ga(&#39;send&#39;, &#39;event&#39;, &#39;Link&#39;, &#39;click&#39;, &#39;T2-login-tip-aws&#39;)">博客园派送云上免费午餐，AWS注册立享12个月免费套餐</a>
+</div></div>
+    <div class="ad_text_commentbox" id="ad_text_under_commentbox"></div>
+    <div id="ad_t2"></div>
+    <div id="opt_under_post"></div>
+    <div id="cnblogs_c1" class="c_ad_block">
+        <div id="div-gpt-ad-1592365906576-0" style="width: 300px; height: 250px;"></div>
+    </div>
+    <div id="under_post_news"></div>
+    <div id="cnblogs_c2" class="c_ad_block">
+        <div id="div-gpt-ad-1592366332455-0" style="width: 468px; height: 60px;"></div>
+    </div>
+    <div id="under_post_kb">
+<div class="itnews c_ad_block">
+    <b>最新 IT 新闻</b>:
+    <br>
+ ·          <a href="https://news.cnblogs.com/n/676714/" target="_blank">Google Stadia终于迎来家庭分享功能</a>
+        <br>
+ ·          <a href="https://news.cnblogs.com/n/676700/" target="_blank">被流言笼罩的火币创始人，和隐秘的交易所江湖</a>
+        <br>
+ ·          <a href="https://news.cnblogs.com/n/676699/" target="_blank">阿里巴巴的最新一季业绩，让乐观者和悲观者都有充分的自信理由</a>
+        <br>
+ ·          <a href="https://news.cnblogs.com/n/676697/" target="_blank">双11主播折叠：头部主播带货百亿，有人颗粒无收</a>
+        <br>
+ ·          <a href="https://news.cnblogs.com/n/676668/" target="_blank">怪事，最近50%的VC都在看半导体</a>
+        <br>
+    » <a href="https://news.cnblogs.com/" title="IT 新闻" target="_blank">更多新闻...</a>
+</div></div>
+    <div id="HistoryToday" class="c_ad_block"></div>
+    <script type="text/javascript">
+       var commentManager = new blogCommentManager();
+       commentManager.renderComments(0);
+       fixPostBody();
+       deliverBigBanner();
+setTimeout(function() { incrementViewCount(cb_entryId); }, 50);       deliverT2();
+       deliverC1C2();
+       loadNewsAndKb();
+       loadBlogSignature();
+LoadPostCategoriesTags(cb_blogId, cb_entryId);       LoadPostInfoBlock(cb_blogId, cb_entryId, cb_blogApp, cb_blogUserGuid);
+       GetPrevNextPost(cb_entryId, cb_blogId, cb_entryCreatedDate, cb_postType);
+       loadOptUnderPost();
+       GetHistoryToday(cb_blogId, cb_blogApp, cb_entryCreatedDate);
+   </script>
+</div>
+
+</div>
+
+
+</div>
+<div id="leftcontent">
+    <div id="leftcontentcontainer">
+        <div id="sidebar_news" class="newsItem"><!--done-->
+<div class="newsItem">
+	
+<div id="blog-news">
+    
+    <div id="profile_block">
+        昵称：
+        <a href="https://home.cnblogs.com/u/doop-ymc/">
+            doop-ymc
+        </a>
+        <br>
+        园龄：
+        <a href="https://home.cnblogs.com/u/doop-ymc/" title="入园时间：2013-10-10">
+            7年
+        </a>
+        <br>
+        粉丝：
+        <a href="https://home.cnblogs.com/u/doop-ymc/followers/">
+            0
+        </a>
+        <br>
+        关注：
+        <a href="https://home.cnblogs.com/u/doop-ymc/followees/">
+            0
+        </a>
+        <div id="p_b_follow">
+<a href="javascript:void(0)" onclick="follow(&#39;38d1e80c-9231-e311-8d02-90b11c0b17d6&#39;)">+加关注</a></div>
+        <script>getFollowStatus('38d1e80c-9231-e311-8d02-90b11c0b17d6');</script>
+    </div>
+</div>
+</div>
+
+</div>
+<div id="sidebar_ad"></div><br>
+        <div id="blog-calendar" style="">
+
+<table id="blogCalendar" class="Cal" cellspacing="0" cellpadding="0" title="Calendar" border="0">
+    <tbody>
+        <tr>
+            <td colspan="7">
+                <table class="CalTitle" cellspacing="0" border="0">
+                    <tbody>
+                        <tr>
+                            <td class="CalNextPrev">
+                                <a href="javascript:void(0);" onclick="loadBlogCalendar(&#39;2020/10/06&#39;); return false;">&lt;</a>
+                            </td>
+                            <td align="center">2020年11月</td>
+                            <td align="right" class="CalNextPrev">
+                                <a href="javascript:void(0);" onclick="loadBlogCalendar(&#39;2020/12/06&#39;); return false;">&gt;</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    <tr>
+        <th class="CalDayHeader" align="center" abbr="日" scope="col">日</th>
+        <th class="CalDayHeader" align="center" abbr="一" scope="col">一</th>
+        <th class="CalDayHeader" align="center" abbr="二" scope="col">二</th>
+        <th class="CalDayHeader" align="center" abbr="三" scope="col">三</th>
+        <th class="CalDayHeader" align="center" abbr="四" scope="col">四</th>
+        <th class="CalDayHeader" align="center" abbr="五" scope="col">五</th>
+        <th class="CalDayHeader" align="center" abbr="六" scope="col">六</th>
+    </tr>
+            <tr>
+                        <td class="CalWeekendDay" align="center">
+                            1
+                        </td>
+                        <td class="" align="center">
+                            2
+                        </td>
+                        <td class="" align="center">
+                            3
+                        </td>
+                        <td class="" align="center">
+                            4
+                        </td>
+                        <td class="" align="center">
+                            5
+                        </td>
+                        <td class="CalTodayDay" align="center">
+                            6
+                        </td>
+                    <td class="CalWeekendDay" align="center">
+                        7
+                    </td>
+            </tr>
+                <tr>
+                        <td class="CalWeekendDay" align="center">
+                            8
+                        </td>
+                            <td class="" align="center">
+                                9
+                            </td>
+                            <td class="" align="center">
+                                10
+                            </td>
+                            <td class="" align="center">
+                                11
+                            </td>
+                            <td class="" align="center">
+                                12
+                            </td>
+                            <td class="" align="center">
+                                13
+                            </td>
+                        <td class="CalWeekendDay" align="center">
+                            14
+                        </td>
+                </tr>
+                <tr>
+                        <td class="CalWeekendDay" align="center">
+                            15
+                        </td>
+                            <td class="" align="center">
+                                16
+                            </td>
+                            <td class="" align="center">
+                                17
+                            </td>
+                            <td class="" align="center">
+                                18
+                            </td>
+                            <td class="" align="center">
+                                19
+                            </td>
+                            <td class="" align="center">
+                                20
+                            </td>
+                        <td class="CalWeekendDay" align="center">
+                            21
+                        </td>
+                </tr>
+                <tr>
+                        <td class="CalWeekendDay" align="center">
+                            22
+                        </td>
+                            <td class="" align="center">
+                                23
+                            </td>
+                            <td class="" align="center">
+                                24
+                            </td>
+                            <td class="" align="center">
+                                25
+                            </td>
+                            <td class="" align="center">
+                                26
+                            </td>
+                            <td class="" align="center">
+                                27
+                            </td>
+                        <td class="CalWeekendDay" align="center">
+                            28
+                        </td>
+                </tr>
+                <tr>
+                        <td class="CalWeekendDay" align="center">
+                            29
+                        </td>
+                            <td class="" align="center">
+                                30
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                1
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                2
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                3
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                4
+                            </td>
+                        <td class="CalOtherMonthDay" align="center">
+                            5
+                        </td>
+                </tr>
+                <tr>
+                        <td class="CalOtherMonthDay" align="center">
+                            6
+                        </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                7
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                8
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                9
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                10
+                            </td>
+                            <td class="CalOtherMonthDay" align="center">
+                                11
+                            </td>
+                        <td class="CalOtherMonthDay" align="center">
+                            12
+                        </td>
+                </tr>
+    </tbody>
+</table></div>
+        <script>loadBlogDefaultCalendar();</script>
+        <div id="blog-sidecolumn"><!-- 搜索 -->
+<div id="sidebar_search" class="sidebar-block">
+    <div id="sidebar_search" class="mySearch">
+        <h3 class="catListTitle">搜索</h3>
+        <div id="sidebar_search_box">
+            <div id="widget_my_zzk" class="div_my_zzk">
+                <input type="text" id="q" onkeydown="return zzk_go_enter(event);" class="input_my_zzk">&nbsp;<input onclick="zzk_go()" type="button" value="找找看" id="btnZzk" class="btn_my_zzk">
+            </div>
+            <div id="widget_my_google" class="div_my_zzk">
+                <input type="text" name="google_q" id="google_q" onkeydown="return google_go_enter(event);" class="input_my_zzk">&nbsp;<input onclick="google_go()" type="button" value="谷歌搜索" class="btn_my_zzk">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 常用链接 -->
+<div id="sidebar_shortcut" class="sidebar-block">
+<h3 class="catListTitle">
+常用链接
+</h3>
+<ul>
+    
+<li><a href="https://www.cnblogs.com/doop-ymc/p/" title="我的博客的随笔列表">我的随笔</a></li>
+<li><a href="https://www.cnblogs.com/doop-ymc/MyComments.html" title="我的发表过的评论列表">我的评论</a></li>
+<li><a href="https://www.cnblogs.com/doop-ymc/OtherPosts.html" title="我评论过的随笔列表">我的参与</a></li>
+<li><a href="https://www.cnblogs.com/doop-ymc/RecentComments.html" title="我的博客的评论列表">最新评论</a></li>
+<li><a href="https://www.cnblogs.com/doop-ymc/tag/" title="我的博客的标签列表">我的标签</a></li>
+
+</ul>
+</div>
+
+<!-- 最新随笔 -->
+
+
+<!-- 我的标签 -->
+<div id="sidebar_toptags" class="sidebar-block">
+<h3>我的标签</h3>
+<div id="MyTag">
+    <ul>
+                <li>
+            <a href="https://www.cnblogs.com/doop-ymc/tag/Linux/">Linux<span class="tag-count">(4)</span></a>
+        </li>
+        <li>
+            <a href="https://www.cnblogs.com/doop-ymc/tag/nginx/">nginx<span class="tag-count">(3)</span></a>
+        </li>
+        <li>
+            <a href="https://www.cnblogs.com/doop-ymc/tag/php/">php<span class="tag-count">(2)</span></a>
+        </li>
+        <li>
+            <a href="https://www.cnblogs.com/doop-ymc/tag/c%2Fc%2B%2B/">c/c++<span class="tag-count">(1)</span></a>
+        </li>
+        <li>
+            <a href="https://www.cnblogs.com/doop-ymc/tag/GIT/">GIT<span class="tag-count">(1)</span></a>
+        </li>
+    
+
+    </ul>
+</div>
+</div>
+
+<!-- 积分与排名 -->
+
+
+<!-- 随笔分类、随笔档案、文章分类、新闻分类、相册、链接 -->
+<div id="sidebar_categories">
+<!--done-->
+		<h1 class="catListTitle">
+随笔档案
+
+
+</h1>
+				<ul class="catList">
+			
+				<li class="catListItem"> 
+<a href="https://www.cnblogs.com/doop-ymc/archive/2013/12.html" rel="" target="">
+    2013年12月(4)
+</a>
+
+</li>
+				<li class="catListItem"> 
+<a href="https://www.cnblogs.com/doop-ymc/archive/2013/11.html" rel="" target="">
+    2013年11月(6)
+</a>
+
+</li>
+				<li class="catListItem"> 
+<a href="https://www.cnblogs.com/doop-ymc/archive/2013/10.html" rel="" target="">
+    2013年10月(4)
+</a>
+
+</li>
+			
+				</ul>
+
+</div>
+
+<!-- 最新评论 -->
+<div id="sidebar_recentcomments" class="sidebar-block"></div>
+
+
+<!-- 阅读排行榜 -->
+<div id="sidebar_topviewedposts" class="sidebar-block">
+<div id="topview_posts_wrap">
+    <h3 class="catListTitle">阅读排行榜</h3>
+    <div id="TopViewPostsBlock">
+        <ul style="word-break:break-all">
+                    <li>
+                        <a href="https://www.cnblogs.com/doop-ymc/p/3412572.html">
+                            1. nginx slab内存管理(4678)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/doop-ymc/p/3440316.html">
+                            2. nginx 红黑树详解(2412)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/doop-ymc/p/3418514.html">
+                            3. nginx 内存池分析(1056)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/doop-ymc/p/3432184.html">
+                            4. nginx 设置进程title(995)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/doop-ymc/p/3404005.html">
+                            5. copy-on-write学习(463)
+                        </a>
+                    </li>
+        </ul>
+    </div>
+</div></div>
+
+<!-- 评论排行榜 -->
+<div id="sidebar_topcommentedposts" class="sidebar-block"></div>
+
+<!-- 推荐排行榜 -->
+<div id="sidebar_topdiggedposts" class="sidebar-block"></div></div>
+        <script>loadBlogSideColumn();</script>
+    </div>
+</div>
+<!--done-->
+<div class="footer">
+	Copyright © 2020 doop-ymc
+<br><span id="poweredby">Powered by .NET 5.0.0-rc.2.20475.5 on Kubernetes</span>
+ Powered By<a href="https://www.cnblogs.com/">博客园</a>
+</div>
+
+
+
+
+    
+
+
+<iframe src="./nginx slab内存管理 - doop-ymc - 博客园_files/widget.html" style="overflow: hidden; position: fixed; height: 350px; width: 400px; bottom: 20px; right: 20px; background: none; border: none; z-index: 2147483646; user-select: none; display: block;"></iframe></body></html>
