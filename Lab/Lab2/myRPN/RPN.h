@@ -73,6 +73,7 @@ public:
 	int DoParseExpr();
 	int PushOperator(tagOperator& refOperator);
 	int Evaluates(tagOperator& refOperator);
+
 private:
 	tagOperator		PLeft, PRight, Divide, Multiply, Add, Subtract, Sentinel;
 	string	m_strExpression;
