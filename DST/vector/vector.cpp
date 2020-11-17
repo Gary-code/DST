@@ -187,18 +187,18 @@ void Vector<T>::mergeSort(Rank lo,Rank hi){
 }
 
 //斐波拉契查找
-template <class T>
-static Rank fibSearch(T * A,T const & e,Rank lo,Rank hi){
-    Fib fib(hi-lo);
-    while(lo<hi){
-        while(hi-lo<fib.get())fib.prev();//通过向前查找，至多迭代几代
-        Rank mi=lo+fib.get()-1;
-        if(e<A[mi])hi=mi;
-        else if(A[mi]<e)lo=mi+1;
-        else return mi;
-    }
-    return -1;//查找失败
-}
+// template <class T>
+// static Rank fibSearch(T * A,T const & e,Rank lo,Rank hi){
+//     Fib fib(hi-lo);
+//     while(lo<hi){
+//         while(hi-lo<fib.get())fib.prev();//通过向前查找，至多迭代几代
+//         Rank mi=lo+fib.get()-1;
+//         if(e<A[mi])hi=mi;
+//         else if(A[mi]<e)lo=mi+1;
+//         else return mi;
+//     }
+//     return -1;//查找失败
+// }
 
 template <class T>
 static Rank binSearch(T *A,T const& e,Rank lo ,Rank hi){
@@ -210,23 +210,23 @@ static Rank binSearch(T *A,T const& e,Rank lo ,Rank hi){
 }
 
 
-template <class T>
-void saddleback(int A[][],int x,0,n)//马鞍查找
-{
-    int i=0;
-    int j=binSearch(A[0][],x,0,n);
-    while(i<n&&-1<j){
-        if(A[i][j]<x)i++;
-        else if(x<A[i][j])j--;
-        else
-        {
-            cout<<i<<","<<j;
-            i++;
-            j--;          
-        }
+// template <class T>
+// void saddleback(int A[][3],int x,int t1=0,int t2=n)//马鞍查找
+// {
+//     int i=0;
+//     int j=binSearch(A[0][],x,0,n);
+//     while(i<n&&-1<j){
+//         if(A[i][j]<x)i++;
+//         else if(x<A[i][j])j--;
+//         else
+//         {
+//             cout<<i<<","<<j;
+//             i++;
+//             j--;          
+//         }
         
-    }
-}
+//     }
+// }
 
 //插值查找算法我这里就不实现了
 
@@ -247,7 +247,7 @@ Rank Vector<T>::partition(Rank lo, Rank hi){//[lo,hi]
     int mi=lo;
     for(int k=lo+1;k<=hi;++k){
         if(_elem[k]<pivot){
-            swap(_elem[++mi],_elem[k])
+            swap(_elem[++mi],_elem[k]);
         }
     }
     swap(_elem[lo],_elem[mi]);

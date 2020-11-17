@@ -76,7 +76,7 @@ template <class T> class Vector   //向量类模板
 		 bool empty()const {return !_size;}//判断向量是否为空
 		 int disoedered()const;//判断向量是否排好序了
 		 Rank find(T const & e)const{return find(e,0,_size);}//无序向量查找
-		 Rank find(T const & e,Rank lo,Rank hi);//有序向量的查找
+		 Rank find(T const & e,Rank lo,Rank hi) const;//有序向量的查找
 		 Rank search(T const& e)const{//有序向量的搜索
 		 return (0>=_size) ? -1:search(e,0,_size);
 		 }
