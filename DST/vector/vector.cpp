@@ -64,6 +64,7 @@ int Vector<T>::disoedered()const{//返回逆序的数量
     return n;//向量有序当且仅当n=0
 }
 
+//寻秩访问的方式，效率高
 template <class T>
 T&  Vector<T>::operator[](Rank r)const{
     return _elem[r];//0<=r<_size 
