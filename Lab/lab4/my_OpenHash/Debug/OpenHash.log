@@ -1,0 +1,164 @@
+﻿  scp_main.cpp
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43,34): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43,23): error C2146: 语法错误: 缺少“;”(在标识符“scp_table_t”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,48): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,78): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,72): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,48): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,78): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,72): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(70,33): error C3646: “add”: 未知重写说明符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(70,33): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(71,33): error C3646: “get”: 未知重写说明符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(71,33): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(72,3): error C2371: “scp_table_s”: 重定义；不同的基类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43): message : 参见“scp_table_s”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C2143: 语法错误: 缺少“;”(在“*”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C2086: “int scp_table_t”: 重定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43): message : 参见“scp_table_t”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,57): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(78,37): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(78,42): error C2182: “scp_table_destroy”: 非法使用“void”类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,41): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,48): error C2065: “scp_table_add_pt”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,65): error C2146: 语法错误: 缺少“)”(在标识符“add_handler”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,38): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,68): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,62): error C2146: 语法错误: 缺少“)”(在标识符“pindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,47): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,73): error C2065: “item”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,77): error C2275: “scp_table_item_t”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(51): message : 参见“scp_table_item_t”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,77): error C2182: “scp_table_alloc_item”: 非法使用“void”类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,13): error C7525: 内联变量至少需要 "/std:c++17"
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(90,1): error C2448: “scp_table_alloc_item”: 函数样式初始值设定项类似函数定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(66,1): error C2660: “memcmp”: 函数不接受 2 个参数
+D:\visual studio\VC\Tools\MSVC\14.23.28105\include\vcruntime_string.h(26,13): message : 参见“memcmp”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(80,15): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(87,2): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(88,7): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(95,24): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(95,31): error C2065: “scp_table_add_handler”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(95,54): error C2065: “scp_table_get_handler”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(95,2): error C3861: “scp_table_set_handler”: 找不到标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(98,9): error C2660: “scp_open_hash_init”: 函数不接受 6 个参数
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_open_hash.h(61,18): message : 参见“scp_open_hash_init”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(107,22): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(107,2): error C3861: “scp_table_add_index”: 找不到标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(110,12): warning C4244: “参数”: 从“time_t”转换到“unsigned int”，可能丢失数据
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(128,10): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(128,21): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(139,27): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(139,38): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(118,1): error C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\Windows Kits\10\Include\10.0.18362.0\ucrt\string.h(133): message : 参见“strcpy”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(123,1): error C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\Windows Kits\10\Include\10.0.18362.0\ucrt\string.h(133): message : 参见“strcpy”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(127,1): error C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\Windows Kits\10\Include\10.0.18362.0\ucrt\string.h(133): message : 参见“strcpy”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_main.cpp(137,1): error C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  scp_open_hash.cpp
+D:\Windows Kits\10\Include\10.0.18362.0\ucrt\string.h(133): message : 参见“strcpy”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_open_hash.cpp(66,24): warning C4101: “next”: 未引用的局部变量
+  scp_table.cpp
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_open_hash.cpp(83,32): warning C4101: “prev”: 未引用的局部变量
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43,34): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43,23): error C2146: 语法错误: 缺少“;”(在标识符“scp_table_t”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,48): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,78): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(46,72): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,48): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,78): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(47,72): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(70,33): error C3646: “add”: 未知重写说明符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(70,33): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(71,33): error C3646: “get”: 未知重写说明符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(71,33): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(72,3): error C2371: “scp_table_s”: 重定义；不同的基类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43): message : 参见“scp_table_s”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C2143: 语法错误: 缺少“;”(在“*”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,12): error C2086: “int scp_table_t”: 重定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43): message : 参见“scp_table_t”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(77,57): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(78,37): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(78,42): error C2182: “scp_table_destroy”: 非法使用“void”类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,41): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,48): error C2065: “scp_table_add_pt”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(80,65): error C2146: 语法错误: 缺少“)”(在标识符“add_handler”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(82,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(84,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,38): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,68): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(86,62): error C2146: 语法错误: 缺少“)”(在标识符“pindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,47): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,73): error C2065: “item”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,77): error C2275: “scp_table_item_t”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(51): message : 参见“scp_table_item_t”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,77): error C2182: “scp_table_alloc_item”: 非法使用“void”类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(89,13): error C7525: 内联变量至少需要 "/std:c++17"
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(90,1): error C2448: “scp_table_alloc_item”: 函数样式初始值设定项类似函数定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(16,61): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(43,12): error C2143: 语法错误: 缺少“;”(在“*”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(43,12): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(43,12): error C2086: “int scp_table_t”: 重定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(43): message : 参见“scp_table_t”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(44,1): error C4430: 缺少类型说明符 - 假定为 int。注意: C++ 不支持默认 int
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(44,1): error C2059: 语法错误:“{”
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(44,1): error C2143: 语法错误: 缺少“;”(在“{”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(44,1): error C2447: “{”: 缺少函数标题(是否是老式的形式表?)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(96,61): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(96,26): error C2374: “scp_table_item_create”: 重定义；多次初始化
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(16): message : 参见“scp_table_item_create”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(97,1): error C2448: “scp_table_item_create”: 函数样式初始值设定项类似函数定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(139,41): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(139,48): error C2065: “scp_table_add_pt”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(139,65): error C2146: 语法错误: 缺少“)”(在标识符“add_handler”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(140,1): error C2143: 语法错误: 缺少“;”(在“{”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(140,1): error C2447: “{”: 缺少函数标题(是否是老式的形式表?)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(174,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(174,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(174,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(175,1): error C2143: 语法错误: 缺少“;”(在“{”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(175,1): error C2447: “{”: 缺少函数标题(是否是老式的形式表?)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(222,38): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(222,68): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(222,62): error C2146: 语法错误: 缺少“)”(在标识符“pindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(223,1): error C2143: 语法错误: 缺少“;”(在“{”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(223,1): error C2447: “{”: 缺少函数标题(是否是老式的形式表?)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(261,42): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(261,72): error C2275: “scp_index_handle”: 将此类型用作表达式非法
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(42): message : 参见“scp_index_handle”的声明
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(261,66): error C2146: 语法错误: 缺少“)”(在标识符“sindex”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(262,1): error C2143: 语法错误: 缺少“;”(在“{”的前面)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(262,1): error C2447: “{”: 缺少函数标题(是否是老式的形式表?)
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(270,37): error C2065: “table”: 未声明的标识符
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(270,42): error C2182: “scp_table_destroy”: 非法使用“void”类型
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(270,6): error C2374: “scp_table_destroy”: 重定义；多次初始化
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.h(78): message : 参见“scp_table_destroy”的声明
+  正在生成代码...
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_table.cpp(271,1): error C2448: “scp_table_destroy”: 函数样式初始值设定项类似函数定义
+C:\Users\Gary\Desktop\lab4\OpenHash\scp_open_hash.cpp(101): warning C4715: “scp_open_hash_add_handler”: 不是所有的控件路径都返回值
