@@ -170,7 +170,7 @@ scp_stk_order_t *scp_get_by_ordersn(uint32_t ordersn)
 	int pianyi_num = ordersn % (SCP_INDEX_ORDERSN_NUM*SCP_BPU_NUM) % SCP_INDEX_ORDERSN_NUM;
 
 	scp_htindex_item_t *now = (scp_bpus+bpu_num)->list;
-	while (now->index_num != item_num)
+	while (now->index != item_num)
 	{
 		now = now->next;
 	}
