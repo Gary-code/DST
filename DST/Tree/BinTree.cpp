@@ -2,7 +2,6 @@
 #include <iostream>
 #include "Stack.h"
 #include <queue>
-#define stature(p) ((p)?(p)->height:-1) //涵盖所有情况
 using namespace std;
 
 

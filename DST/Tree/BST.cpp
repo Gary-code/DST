@@ -11,7 +11,7 @@ template <class T>
 static BinNodeposi(T) & searchIn(BinNodeposi(T) & v,const T & e, BinNodeposi(T) & hot)//hot记忆节点
 {
     //为返回失败的是后续设置了一个假象的哨兵，失败后可以返回null
-    if(!v||(e==v->data))return v;
+    if(!v||(e==v->data))return v;//直接返回
     hot=v;//记下当前访问的非空的节点
     return searchIn(((e<v->data)?v->lChild:v->rChild),e,hot);
 }
@@ -32,7 +32,7 @@ template <class T> static BinNodeposi(T) removeAt(BinNodeposi(T) & x,BinNodeposi
     BinNodeposi(T) w=x;//实际被摘除的节点
     BinNodeposi(T) succ = NULL;//实际被删除节点的接替者
     if(!x->lChild) succ=x=x->rChild;
-    if(!x->rChild) succ=x=x->lChild;
+    else if(!x->rChild) succ=x=x->lChild;
     else{
         //左右子树并存的情况
         w=w->succ();//中序遍历后的一个

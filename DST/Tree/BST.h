@@ -1,6 +1,5 @@
 #include "BinTree.h"
 
-
 template <class T> 
 class BST:public BinTree<T>
 {
